@@ -75,7 +75,7 @@ class SSLCOMMERZ(object):
 
     def transaction_query_session(self, sessionkey):
         """
-        sessionkey: The session id (mandatory) has been generated at the time of transaction initiated.        
+        sessionkey: The session id (mandatory) has been generated at the time of transaction initiated.
         """
 
         params = {}
@@ -102,7 +102,7 @@ class SSLCOMMERZ(object):
         """
         As IPN URL already set in panel. All the payment notification will reach through IPN prior to user return back. So it needs validation for amount and transaction properly.
 
-        The IPN will send a POST REQUEST params that describes in 'https://developer.sslcommerz.com/'. Grab the post notification. 
+        The IPN will send a POST REQUEST params that describes in 'https://developer.sslcommerz.com/'. Grab the post notification.
 
         """
         if self.checkKey(post_body, 'verify_key') & self.checkKey(post_body, 'verify_sign'):

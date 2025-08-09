@@ -1,22 +1,33 @@
-from django.db.models.signals import post_save, post_delete
+from django.contrib.auth.signals import user_logged_in, user_logged_out
+from django.db.models.signals import post_save
 from django.dispatch import receiver
-# from django.contrib.auth.models import User
 
 from .models import Doctor_Information
-from hospital.models import User
+from hospital.models import User  # Use your actual User model path if different
 
 
-# # from django.core.mail import send_mail
-# # from django.conf import settings
+# ========== TRACK DOCTOR LOGIN STATUS ==========
+@receiver(user_logged_in)
+def doctor_login(sender, request, user, **kwargs):
+    if hasattr(user, 'doctor'):
+        user.doctor.is_online = True
+        user.doctor.save()
 
 
+@receiver(user_logged_out)
+def doctor_logout(sender, request, user, **kwargs):
+    if hasattr(user, 'doctor'):
+        user.doctor.is_online = False
+        user.doctor.save()
+
+
+# ========== UPDATE USER INFO FROM DOCTOR_Information ==========
 @receiver(post_save, sender=Doctor_Information)
-def updateUser(sender, instance, created, **kwargs):
-    # user.profile or below (1-1 relationship goes both ways)
+def update_user_from_doctor_info(sender, instance, created, **kwargs):
     doctor = instance
     user = doctor.user
 
-    if created == False:
+    if not created:
         user.first_name = doctor.name
         user.username = doctor.username
         user.email = doctor.email

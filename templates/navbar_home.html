@@ -35,7 +35,7 @@
         <a href="{% url 'hospital_home'%}" style="text-decoration: none;">Home</a>
       </li>
 
-      {% comment %}
+  
       {% if user.is_authenticated and user.is_doctor %}
       <li class="has-submenu active">
         <a href="#" style="text-decoration: none;">Doctors <i class="fas fa-chevron-down"></i></a>
@@ -55,9 +55,9 @@
         </ul>
       </li>
       {% endif %}
-      {% endcomment %}
+      
 
-      {% comment %}
+      
       {% if user.is_authenticated and user.is_patient %}
       <li class="has-submenu">
         <a href="#">Patients <i class="fas fa-chevron-down"></i></a>
@@ -80,7 +80,7 @@
       </li>
       
       {% endif %}
-      {% endcomment %}
+      
 
       {% if user.is_authenticated and user.is_patient %}
       <li><a href="{% url 'patient-dashboard' %}"style="text-decoration: none;">Patient Dashboard</a></li>
@@ -114,7 +114,7 @@
 
   <ul class="nav header-navbar-rht">
     <li class="nav-item contact-item">
-      <div class="header-contact-img">
+      <div class="heaer-contact-img">
         <i class="far fa-hospital"></i>
       </div>
       <div class="header-contact-detail">

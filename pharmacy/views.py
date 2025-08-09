@@ -1,8 +1,8 @@
 import email
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse
-# from django.contrib.auth.models import User
-# from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.models import User
+from django.contrib.auth.forms import UserCreationForm
 
 from django.contrib.auth import login, authenticate, logout
 from django.contrib.auth.decorators import login_required
@@ -14,8 +14,8 @@ from .utils import searchMedicines
 from django.views.decorators.csrf import csrf_exempt
 
 
-# from django.db.models.signals import post_save, post_delete
-# from django.dispatch import receiver
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
 
 
 # Create your views here.
@@ -25,8 +25,8 @@ from django.views.decorators.csrf import csrf_exempt
 @csrf_exempt
 @login_required(login_url="login")
 def pharmacy_single_product(request,pk):
-     if request.user.is_authenticated and request.user.is_patient:
-         
+    if request.user.is_authenticated and request.user.is_patient:
+        
         patient = Patient.objects.get(user=request.user)
         medicines = Medicine.objects.get(serial_number=pk)
         orders = Order.objects.filter(user=request.user, ordered=False)
@@ -38,10 +38,10 @@ def pharmacy_single_product(request,pk):
         else:
             context = {'patient': patient, 'medicines': medicines,'carts': carts,'orders': orders}
             return render(request, 'pharmacy/product-single.html',context)
-     else:
+    else:
         logout(request)
         messages.error(request, 'Not Authorized')
-        return render(request, 'patient-login.html')  
+        return render(request, 'patient-login.html')
 
 @csrf_exempt
 @login_required(login_url="login")
@@ -66,7 +66,7 @@ def pharmacy_shop(request):
     else:
         logout(request)
         messages.error(request, 'Not Authorized')
-        return render(request, 'patient-login.html')  
+        return render(request, 'patient-login.html')
 
 @csrf_exempt
 @login_required(login_url="login")
@@ -77,7 +77,7 @@ def checkout(request):
 @login_required(login_url="login")
 def add_to_cart(request, pk):
     if request.user.is_authenticated and request.user.is_patient:
-         
+        
         patient = Patient.objects.get(user=request.user)
         medicines = Medicine.objects.all()
         
@@ -108,13 +108,13 @@ def add_to_cart(request, pk):
     else:
         logout(request)
         messages.error(request, 'Not Authorized')
-        return render(request, 'patient-login.html')  
+        return render(request, 'patient-login.html')
 
 @csrf_exempt
 @login_required(login_url="login")
 def cart_view(request):
     if request.user.is_authenticated and request.user.is_patient:
-         
+        
         patient = Patient.objects.get(user=request.user)
         medicines = Medicine.objects.all()
         
@@ -131,13 +131,13 @@ def cart_view(request):
     else:
         logout(request)
         messages.info(request, 'Not Authorized')
-        return render(request, 'patient-login.html') 
+        return render(request, 'patient-login.html')
 
 @csrf_exempt
 @login_required(login_url="login")
 def remove_from_cart(request, pk):
     if request.user.is_authenticated and request.user.is_patient:
-         
+        
         patient = Patient.objects.get(user=request.user)
         medicines = Medicine.objects.all()
         carts = Cart.objects.filter(user=request.user, purchased=False)
@@ -164,14 +164,14 @@ def remove_from_cart(request, pk):
     else:
         logout(request)
         messages.error(request, 'Not Authorized')
-        return render(request, 'patient-login.html') 
+        return render(request, 'patient-login.html')
 
 
 @csrf_exempt
 @login_required(login_url="login")
 def increase_cart(request, pk):
     if request.user.is_authenticated and request.user.is_patient:
-         
+        
         patient = Patient.objects.get(user=request.user)
         medicines = Medicine.objects.all()
         carts = Cart.objects.filter(user=request.user, purchased=False)
@@ -198,14 +198,14 @@ def increase_cart(request, pk):
     else:
         logout(request)
         messages.error(request, 'Not Authorized')
-        return render(request, 'patient-login.html') 
+        return render(request, 'patient-login.html')
 
 
 @csrf_exempt
 @login_required(login_url="login")
 def decrease_cart(request, pk):
     if request.user.is_authenticated and request.user.is_patient:
-         
+        
         patient = Patient.objects.get(user=request.user)
         medicines = Medicine.objects.all()
         carts = Cart.objects.filter(user=request.user, purchased=False)
@@ -238,5 +238,5 @@ def decrease_cart(request, pk):
     else:
         logout(request)
         messages.error(request, 'Not Authorized')
-        return render(request, 'patient-login.html') 
+        return render(request, 'patient-login.html')
 # Create your views here.

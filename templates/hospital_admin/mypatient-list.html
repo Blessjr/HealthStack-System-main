@@ -2,7 +2,7 @@
 
 <!DOCTYPE html>
 <html lang="en">
-  <!-- Mirrored from dreamguys.co.in/demo/doccure/admin/index.html by HTTrack Website Copier/3.x [XR&CO'2014], Sat, 30 Nov 2019 04:12:20 GMT -->
+  <!-- Mirrored from dreamguys.co.in/demo/doccure/admin/index.html by HTTrack Website Copier/3.x [XR&CO'2014], Sat, 30 Nov 2024 04:12:20 GMT -->
   <head>
     <meta charset="utf-8" />
     <meta
@@ -45,16 +45,16 @@
       href="{% static 'HealthStack-System/css/admin/style.css'%}"
     />
 
-    <!--[if lt IE 9]>
+    [if lt IE 9]
       <script src="assets/js/html5shiv.min.js"></script>
       <script src="assets/js/respond.min.js"></script>
-    <![endif]-->
+    [endif]
   </head>
   <body>
     <!-- Main Wrapper -->
         <div class="main-wrapper">
       <!-- Header -->
-			<header class="header">{% include 'hospital_admin/labworker-navbar.html' %}</header>            
+			<header class="header">{% include 'hospital_admin/labworker-navbar.html' %}</header>
 			<!-- /Header -->
 			
 			<!-- Sidebar -->
@@ -84,17 +84,17 @@
 									<div class="table-responsive">
 										<table class="table table-hover table-center mb-0">
 											<thead>
-												<tr>													
+												<tr>
 													<th>Patient Id</th>
                                                     <th>Patient Name</th>
 													<th>Phone</th>
 													<th>Email</th>
                           <th>View</th>
-                                                    												
+
 												</tr>
 											</thead>
 											<tbody>
-                                                 {% for p in patient %}
+                                                {% for p in patient %}
 												<tr>
                                                     <td>{{p.patient_id}}</td>
 													<td>
@@ -208,5 +208,5 @@
   </body>
 
 
-  <!-- Mirrored from dreamguys.co.in/demo/doccure/admin/index.html by HTTrack Website Copier/3.x [XR&CO'2014], Sat, 30 Nov 2019 04:12:34 GMT -->
+  <!-- Mirrored from dreamguys.co.in/demo/doccure/admin/index.html by HTTrack Website Copier/3.x [XR&CO'2014], Sat, 30 Nov 2024 04:12:34 GMT -->
 </html>

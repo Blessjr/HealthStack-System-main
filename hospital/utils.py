@@ -16,7 +16,7 @@ def searchDoctors(request):
     
     doctors = Doctor_Information.objects.filter(register_status='Accepted').distinct().filter(
         Q(name__icontains=search_query) |
-        Q(hospital_name__name__icontains=search_query) |  
+        Q(hospital_name__name__icontains=search_query) |
         Q(department__icontains=search_query))
     
     return doctors, search_query

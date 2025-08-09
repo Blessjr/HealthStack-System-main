@@ -3,6 +3,6 @@
     "development"
   ],
   "hints": {
-    "compat-api/css": "off"
+    "compat-api/css": "on"
   }
 }

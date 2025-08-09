@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.0/ref/settings/
 
 from pathlib import Path
 import os
+import re
 import environ
 # django-environ
 
@@ -52,10 +53,34 @@ INSTALLED_APPS = [
     'sslcommerz.apps.SslcommerzConfig',
     'widget_tweaks',
     'rest_framework',
+    'channels',
+    'chatbot',
     'ChatApp.apps.ChatappConfig',
     'debug_toolbar',
 
 ]
+
+
+ASGI_APPLICATION = 'healthstack.asgi.application'
+
+CHANNEL_LAYERS = {
+    "local": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+            "channel_capacity": {
+                "http.request": 200,
+                "http.response!*": 100,
+                re.compile(r"^websocket.send\!.+"): 50,
+            },
+            # Add these timeout settings
+            "expiry": 10,  # seconds
+            "group_expiry": 60,  # seconds
+            "capacity": 1000,
+        },
+    },
+}
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -78,7 +103,7 @@ TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [
-            os.path.join(BASE_DIR, 'templates')
+            os.path.join(BASE_DIR/ 'templates')
         ],
         'APP_DIRS': True,
         'OPTIONS': {
@@ -91,9 +116,6 @@ TEMPLATES = [
         },
     },
 ]
-
-WSGI_APPLICATION = 'healthstack.wsgi.application'
-
 
 # Database
 # https://docs.djangoproject.com/en/4.0/ref/settings/#databases
@@ -130,7 +152,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'Asia/Dhaka'
+TIME_ZONE = 'Africa/Douala'
 
 USE_I18N = True
 
@@ -144,6 +166,7 @@ STATIC_URL = 'static/'
 MEDIA_URL = '/images/'
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'static/images')
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static')
@@ -162,15 +185,13 @@ SMTP_USER = env('SMTP_USER')
 SMTP_PASSWORD = env('SMTP_PASSWORD')
 
 # EMAIL
-
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.mailtrap.io'
-EMAIL_PORT = SMTP_PORT
-EMAIL_HOST_USER = SMTP_USER
-EMAIL_HOST_PASSWORD = SMTP_PASSWORD
+EMAIL_HOST = 'in-v3.mailjet.com'
+EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_USE_SSL = False
-
+EMAIL_HOST_USER = 'c51e758c17aabd05a9e9d224961dea30'
+EMAIL_HOST_PASSWORD = 'blessjunior2004##'
+DEFAULT_FROM_EMAIL = 'tientcheujunior83@gmail.com'
 
 
 # Default primary key field type
@@ -183,3 +204,10 @@ AUTH_USER_MODEL = 'hospital.User'
 # SESSION AGE 45 Minutes
 SESSION_COOKIE_AGE = 45*60
 SESSION_SAVE_EVERY_REQUEST = True
+
+OPENROUTER_API_KEY = env("OPENROUTER_API_KEY", default="")
+
+#used for easy switching
+import sys
+if 'test' in sys.argv or 'runserver' in sys.argv:
+    CHANNEL_LAYERS['default'] = CHANNEL_LAYERS['local']

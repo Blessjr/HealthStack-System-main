@@ -2,9 +2,10 @@ import email
 from email import message
 from multiprocessing import context
 from turtle import title
-from django.shortcuts import render, redirect
+from django.shortcuts import get_object_or_404, render, redirect
 # from django.contrib.auth.models import User
 from django.contrib.auth.forms import UserCreationForm
+from chatbot.models import ChatMessage, Conversation
 from hospital_admin.views import prescription_list
 from .forms import DoctorUserCreationForm, DoctorForm
 from django.contrib.auth import login, authenticate, logout
@@ -26,7 +27,7 @@ import datetime
 import re
 from django.core.mail import BadHeaderError, send_mail
 from django.template.loader import render_to_string
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseForbidden
 from django.utils.html import strip_tags
 from io import BytesIO
 from urllib import response
@@ -155,28 +156,69 @@ def doctor_login(request):
 @login_required(login_url="doctor-login")
 @cache_control(no_cache=True, must_revalidate=True, no_store=True)
 def doctor_dashboard(request):
-        if request.user.is_authenticated:    
-            if request.user.is_doctor:
-                # doctor = Doctor_Information.objects.get(user_id=pk)
-                doctor = Doctor_Information.objects.get(user=request.user)
-                # appointments = Appointment.objects.filter(doctor=doctor).filter(Q(appointment_status='pending') | Q(appointment_status='confirmed'))
-                current_date = datetime.date.today()
-                current_date_str = str(current_date)
-                today_appointments = Appointment.objects.filter(date=current_date_str).filter(doctor=doctor).filter(appointment_status='confirmed')
-                
-                next_date = current_date + datetime.timedelta(days=1) # next days date
-                next_date_str = str(next_date)
-                next_days_appointment = Appointment.objects.filter(date=next_date_str).filter(doctor=doctor).filter(Q(appointment_status='pending') | Q(appointment_status='confirmed')).count()
-                
-                today_patient_count = Appointment.objects.filter(date=current_date_str).filter(doctor=doctor).annotate(count=Count('patient'))
-                total_appointments_count = Appointment.objects.filter(doctor=doctor).annotate(count=Count('id'))
-            else:
-                return redirect('doctor-logout')
-            
-            context = {'doctor': doctor, 'today_appointments': today_appointments, 'today_patient_count': today_patient_count, 'total_appointments_count': total_appointments_count, 'next_days_appointment': next_days_appointment, 'current_date': current_date_str, 'next_date': next_date_str}
-            return render(request, 'doctor-dashboard.html', context)
-        else:
-            return redirect('doctor-login')
+    if not hasattr(request.user, 'is_doctor') or not request.user.is_doctor:
+        return redirect('doctor-logout')
+
+    doctor = Doctor_Information.objects.get(user=request.user)
+    
+    # Get all patients assigned to this doctor
+    patient_ids = Appointment.objects.filter(
+        doctor=doctor,
+        appointment_status='confirmed'
+    ).values_list('patient_id', flat=True).distinct()
+    
+    # Get patient users
+    patient_users = User.objects.filter(id__in=patient_ids)
+    
+    # Get conversations for these patients
+    conversations = Conversation.objects.filter(patient__in=patient_users)
+    
+    # Get all messages from these conversations
+    chat_messages = ChatMessage.objects.filter(
+        conversation__in=conversations
+    ).order_by('-timestamp')[:50]  # Get last 50 messages
+    
+    # Process messages for display
+    processed_messages = []
+    for msg in chat_messages:
+        processed_messages.append({
+            'timestamp': msg.timestamp.strftime("%Y-%m-%d %H:%M"),
+            'sender': msg.get_sender_display(),
+            'message': msg.message,
+            'language': msg.get_language_display() if hasattr(msg, 'get_language_display') else msg.language
+        })
+    
+    # Other dashboard data
+    current_date = datetime.date.today()
+    current_date_str = str(current_date)
+    today_appointments = Appointment.objects.filter(
+        date=current_date_str,
+        doctor=doctor,
+        appointment_status='confirmed'
+    )
+    
+    next_date = current_date + datetime.timedelta(days=1)
+    next_date_str = str(next_date)
+    next_days_appointment = Appointment.objects.filter(
+        date=next_date_str,
+        doctor=doctor
+    ).filter(Q(appointment_status='pending') | Q(appointment_status='confirmed')).count()
+
+    today_patient_count = today_appointments.count()
+    total_appointments_count = Appointment.objects.filter(doctor=doctor).count()
+
+    context = {
+        'doctor': doctor,
+        'today_appointments': today_appointments,
+        'today_patient_count': today_patient_count,
+        'total_appointments_count': total_appointments_count,
+        'next_days_appointment': next_days_appointment,
+        'current_date': current_date_str,
+        'next_date': next_date_str,
+        'chat_messages': processed_messages  # Add chat messages to context
+    }
+
+    return render(request, 'doctor-dashboard.html', context)
 
 @csrf_exempt
 @login_required(login_url="doctor-login")
@@ -393,7 +435,7 @@ def doctor_profile_settings(request):
     else:
         redirect('doctor-logout')
                
-@csrf_exempt    
+@csrf_exempt
 @login_required(login_url="doctor-login")
 def booking_success(request):
     return render(request, 'booking-success.html')
@@ -574,21 +616,21 @@ def report_pdf(request, pk):
     return HttpResponse("Not Found")
 
 
-# def testing(request):
-#     doctor = Doctor_Information.objects.get(user=request.user)
-#     degree = doctor.degree
-#     degree = re.sub("'", "", degree)
-#     degree = degree.replace("[", "")
-#     degree = degree.replace("]", "")
-#     degree = degree.replace(",", "")
-#     degree_array = degree.split()
+def testing(request):
+    doctor = Doctor_Information.objects.get(user=request.user)
+    degree = doctor.degree
+    degree = re.sub("'", "", degree)
+    degree = degree.replace("[", "")
+    degree = degree.replace("]", "")
+    degree = degree.replace(",", "")
+    degree_array = degree.split()
     
 #     education = zip(degree_array, institute_array)
     
 #     context = {'doctor': doctor, 'degree': institute, 'institute_array': institute_array, 'education': education}
 #     # test range, len, and loop to show variables before moving on to doctor profile
     
-#     return render(request, 'testing.html', context)
+    return render(request, 'testing.html', context)
 
 @csrf_exempt
 @login_required(login_url="login")
@@ -670,29 +712,56 @@ def got_offline(sender, request, user, **kwargs):
 @csrf_exempt
 @login_required(login_url="login")
 def doctor_review(request, pk):
-    if request.user.is_doctor:
-        # doctor = Doctor_Information.objects.get(user_id=pk)
-        doctor = Doctor_Information.objects.get(user=request.user)
-            
-        doctor_review = Doctor_review.objects.filter(doctor=doctor)
+    """
+    • Doctors can read the reviews written about themselves.
+    • Patients can write ONE new review (or just read) for the doctor whose PK is <pk>.
+    """
+    # 1️⃣ The doctor we’re talking about
+    doctor = get_object_or_404(Doctor_Information, pk=pk)
+
+    # 2️⃣ If the logged‑in user **is the doctor** whose profile this is
+    if getattr(request.user, "is_doctor", False):
+        if doctor.user != request.user:           # safety: only see your own reviews
+            return HttpResponseForbidden("You can view only your own reviews.")
+
+        reviews = (
+            Doctor_review.objects
+            .filter(doctor=doctor)
+        )
         
-        context = {'doctor': doctor, 'doctor_review': doctor_review}
-        return render(request, 'doctor-profile.html', context)
+        return render(request, "reviews.html", {
+            "doctor": doctor,
+            "doctor_review": reviews,
+        })
 
-    if request.user.is_patient:
-        doctor = Doctor_Information.objects.get(doctor_id=pk)
-        patient = Patient.objects.get(user=request.user)
+    # 3️⃣ If the logged‑in user **is a patient**
+    if getattr(request.user, "is_patient", False):
+        patient = get_object_or_404(Patient, user=request.user)
 
-        if request.method == 'POST':
-            title = request.POST.get('title')
-            message = request.POST.get('message')
-            
-            doctor_review = Doctor_review(doctor=doctor, patient=patient, title=title, message=message)
-            doctor_review.save()
+        # Handle the review form submission
+        if request.method == "POST":
+            Doctor_review.objects.create(
+                doctor=doctor,
+                patient=patient,
+                title=request.POST.get("title", "").strip(),
+                message=request.POST.get("message", "").strip(),
+            )
+            return redirect("doctor_review", pk=pk)   # PRG pattern
 
-        context = {'doctor': doctor, 'patient': patient, 'doctor_review': doctor_review}
-        return render(request, 'doctor-profile.html', context)
-    else:
-        logout(request)
+        # For GET requests, fetch existing reviews to display
+        reviews = (
+            Doctor_review.objects
+            .filter(doctor=doctor)
+            .select_related("patient")
+            .order_by("-created_at")
+        )
+        return render(request, "reviews.html", {
+            "doctor": doctor,
+            "patient": patient,
+            "doctor_review": reviews,
+        })
 
+    # 4️⃣ Anybody else: log out and send to login page
+    logout(request)
+    return redirect("login")
 

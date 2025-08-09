@@ -72,25 +72,25 @@
             <span>Test Information</span>
           </a>
         </li>
-        <!-- <li>
+        <!--<li>
           <a href="invoices.html">
             <i class="fas fa-file-invoice"></i>
             <span>Invoices</span>
           </a>
-        </li> -->
-        <!-- <li>
-          <a href="reviews.html">
+        </li>
+        <li>
+          <a href="{% url 'doctor_review' doctor.pk %}">
             <i class="fas fa-star"></i>
             <span>Reviews</span>
           </a>
-        </li> -->
-        <!-- <li>
+        </li>
+        <li>
           <a href="chat-doctor.html">
             <i class="fas fa-comments"></i>
             <span>Message</span>
             <small class="unread-msg">23</small>
           </a>
-        </li> -->
+        </li>-->
         <li>
           <a
             href="{% url 'doctor-profile-settings' %}"
@@ -99,12 +99,12 @@
             <span>Profile Settings</span>
           </a>
         </li>
-        <!-- <li>
+        <li>
           <a href="social-media.html">
             <i class="fas fa-share-alt"></i>
             <span>Social Media</span>
           </a>
-        </li> -->
+        </li>
         <li>
           <a href="{% url 'doctor-change-password' pk=user.id%}">
             <i class="fas fa-lock"></i>

@@ -4,6 +4,7 @@ from django.urls import reverse
 from django.shortcuts import render, HttpResponseRedirect, redirect
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
+from django.shortcuts import get_object_or_404, redirect
 import random
 import string
 from .models import Payment
@@ -11,7 +12,7 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 from hospital.models import Patient
 from pharmacy.models import Order, Cart
-from doctor.models import Appointment, Prescription, Prescription_test, testCart, testOrder 
+from doctor.models import Appointment, Prescription, Prescription_test, testCart, testOrder
 from django.contrib.auth.decorators import login_required
 
 
@@ -30,8 +31,7 @@ STORE_ID = settings.STORE_ID
 STORE_PASSWORD = settings.STORE_PASSWORD
 STORE_NAME = settings.STORE_NAME
 
-payment_settings = {'store_id': STORE_ID,
-            'store_pass': STORE_PASSWORD, 'issandbox': True}
+payment_settings = {'store_id': STORE_ID,'store_pass': STORE_PASSWORD, 'issandbox': True}
 
 sslcz = SSLCOMMERZ(payment_settings)
 
@@ -72,90 +72,73 @@ def payment_home(request):
 
 @csrf_exempt
 def ssl_payment_request(request, pk, id):
-    # Payment Request for appointment payment
     """
-    1) Create a Initial Payment Request Session
-
-    This view function is used to create a payment request. (Checkout or Pay now will be redirect to this url and view function)
+    Payment Request for appointment payment:
+    Creates a payment request and initializes an SSLCommerz session.
     """
 
-    """
-    Additional code to be added later (examples):
-    1) saved_address = BillingAddress.objects.get_or_create(user=request.user)
-    """
-    
-    
-    patient = Patient.objects.get(patient_id=pk)
-    appointment = Appointment.objects.get(id=id)
+    patient = get_object_or_404(Patient, patient_id=pk)
+    appointment = get_object_or_404(Appointment, id=id)
     
     invoice_number = generate_random_invoice()
-    
-    post_body = {}
-    post_body['total_amount'] = appointment.doctor.consultation_fee + appointment.doctor.report_fee
-    post_body['currency'] = "BDT"
-    post_body['tran_id'] = generate_random_string()
 
-    post_body['success_url'] = request.build_absolute_uri(
-        reverse('ssl-payment-success'))
-    post_body['fail_url'] = request.build_absolute_uri(
-        reverse('ssl-payment-fail'))
-    post_body['cancel_url'] = request.build_absolute_uri(
-        reverse('ssl-payment-cancel'))
+    post_body = {
+        'total_amount': appointment.doctor.consultation_fee + appointment.doctor.report_fee,
+        'currency': "XAF",
+        'tran_id': generate_random_string(),
 
-    post_body['emi_option'] = 0
-  
-    post_body['cus_name'] = patient.username
-    post_body['cus_email'] = patient.email
-    post_body['cus_phone'] = patient.phone_number
-    post_body['cus_add1'] = patient.address
-    post_body['cus_city'] = "Dhaka"
-    post_body['cus_country'] = "Bangladesh"
-    post_body['shipping_method'] = "NO"
-    # post_body['multi_card_name'] = ""
-    post_body['num_of_item'] = 1
-    post_body['product_name'] = "Test"
-    post_body['product_category'] = "Test Category"
-    post_body['product_profile'] = "general"
+        'success_url': request.build_absolute_uri(reverse('ssl-payment-success')),
+        'fail_url': request.build_absolute_uri(reverse('ssl-payment-fail')),
+        'cancel_url': request.build_absolute_uri(reverse('ssl-payment-cancel')),
 
-    # Save in database
+        'emi_option': 0,
+
+        'cus_name': patient.username,
+        'cus_email': patient.email,
+        'cus_phone': patient.phone_number,
+        'cus_add1': patient.address,
+        'cus_city': "Yaounde",
+        'cus_country': "Cameroon",
+
+        'shipping_method': "NO",
+        'num_of_item': 1,
+        'product_name': "Test",
+        'product_category': "Test Category",
+        'product_profile': "general",
+    }
+
+    # Save transaction ID to appointment
     appointment.transaction_id = post_body['tran_id']
     appointment.save()
-    
-    payment = Payment()
-    # payment.patient_id = patient.patient_id
-    # payment.appointment_id = appointment.id
-    payment.patient = patient
-    payment.appointment = appointment
-    payment.name = post_body['cus_name']
-    payment.email = post_body['cus_email']
-    payment.phone = post_body['cus_phone']
-    payment.address = post_body['cus_add1']
-    payment.city = post_body['cus_city']
-    payment.country = post_body['cus_country']
-    payment.transaction_id = post_body['tran_id']
-    
-    payment.consulation_fee = appointment.doctor.consultation_fee
-    payment.report_fee = appointment.doctor.report_fee
-    payment.invoice_number = invoice_number
-    
-    payment_type = "appointment"
-    payment.payment_type = payment_type
-    payment.save()
-    
-    
-    response = sslcz.createSession(post_body)  # API response
-    print(response)
 
-    gateway_url = response.get('GatewayPageURL')
-    if gateway_url:
+    # Save to Payment model
+    payment = Payment(
+        patient=patient,
+        appointment=appointment,
+        name=post_body['cus_name'],
+        email=post_body['cus_email'],
+        phone=post_body['cus_phone'],
+        address=post_body['cus_add1'],
+        city=post_body['cus_city'],
+        country=post_body['cus_country'],
+        transaction_id=post_body['tran_id'],
+        consulation_fee=appointment.doctor.consultation_fee,
+        report_fee=appointment.doctor.report_fee,
+        invoice_number=invoice_number,
+        payment_type="appointment"
+    )
+    payment.save()
+
+    # Create SSLCommerz session
+    response = sslcz.createSession(post_body)
+
+    if response and response.get('GatewayPageURL'):
+        gateway_url = response.get('GatewayPageURL')
         return redirect(gateway_url)
     else:
-        # Log the full response to debug
-        print("SSLCommerz response:", response)
+        print("SSLCommerz response:", response)  # For debugging
+        messages.error(request, "Payment initialization failed. Please try again.")
         return HttpResponse("Payment Gateway URL not received", status=500)
-
-    # return render(request, 'checkout.html')
-
 
 @csrf_exempt
 def ssl_payment_request_medicine(request, pk, id):
@@ -168,7 +151,7 @@ def ssl_payment_request_medicine(request, pk, id):
     
     post_body = {}
     post_body['total_amount'] = order.final_bill()
-    post_body['currency'] = "BDT"
+    post_body['currency'] = "XAF"
     post_body['tran_id'] = generate_random_string()
 
     post_body['success_url'] = request.build_absolute_uri(
@@ -179,13 +162,13 @@ def ssl_payment_request_medicine(request, pk, id):
         reverse('ssl-payment-cancel'))
 
     post_body['emi_option'] = 0
-  
+
     post_body['cus_name'] = patient.username
     post_body['cus_email'] = patient.email
     post_body['cus_phone'] = patient.phone_number
     post_body['cus_add1'] = patient.address
-    post_body['cus_city'] = "Dhaka"
-    post_body['cus_country'] = "Bangladesh"
+    post_body['cus_city'] = "Yaounde"
+    post_body['cus_country'] = "Cameroon"
     post_body['shipping_method'] = "NO"
     # post_body['multi_card_name'] = ""
     post_body['num_of_item'] = 1
@@ -219,16 +202,21 @@ def ssl_payment_request_medicine(request, pk, id):
     payment.save()
     
     
-    response = sslcz.createSession(post_body)  # API response
-    print(response)
+    response = sslcz.createSession(post_body)
+    print("SSLCOMMERZ response:", response)
+    print("Type of response:", type(response))
 
-    gateway_url = response.get('GatewayPageURL', '')
-
-    if gateway_url:
-        return redirect(gateway_url)
+# ✅ Check that response is a dict
+    if isinstance(response, dict):
+        gateway_url = response.get('GatewayPageURL', '')
+        if gateway_url:
+            return redirect(gateway_url)
+        else:
+            messages.error(request, 'Payment gateway URL not returned. Please try again.')
     else:
-        messages.error(request, 'Payment gateway URL not returned. Please try again.')
-    return redirect('checkout-payment')  # Replace 'home' with a valid fallback view name in your urls.py
+        messages.error(request, 'Unexpected response from payment gateway.')
+    
+    return redirect('checkout-payment')
 
 
 
@@ -244,7 +232,7 @@ def ssl_payment_request_test(request, pk, id, pk2):
     
     post_body = {}
     post_body['total_amount'] = test_order.final_bill()
-    post_body['currency'] = "BDT"
+    post_body['currency'] = "XAF"
     post_body['tran_id'] = generate_random_string()
 
     post_body['success_url'] = request.build_absolute_uri(
@@ -255,13 +243,13 @@ def ssl_payment_request_test(request, pk, id, pk2):
         reverse('ssl-payment-cancel'))
 
     post_body['emi_option'] = 0
-  
+
     post_body['cus_name'] = patient.username
     post_body['cus_email'] = patient.email
     post_body['cus_phone'] = patient.phone_number
-    post_body['cus_add1'] = patient.address
-    post_body['cus_city'] = "Dhaka"
-    post_body['cus_country'] = "Bangladesh"
+    post_body['cus_add1'] = patient.addres
+    post_body['cus_city'] = "Yaounde"
+    post_body['cus_country'] = "Cameroon"
     post_body['shipping_method'] = "NO"
     # post_body['multi_card_name'] = ""
     post_body['num_of_item'] = 1
@@ -299,7 +287,7 @@ def ssl_payment_request_test(request, pk, id, pk2):
     response = sslcz.createSession(post_body)  # API response
     print(response)
 
-    return redirect(response['GatewayPageURL'])    
+    return redirect(response['GatewayPageURL'])
 
 @csrf_exempt
 def ssl_payment_success(request):
@@ -442,7 +430,7 @@ def ssl_payment_success(request):
             #     list_id.append(ob[i].item.test_info_id)
             #     list_name.append(ob[i].item.test_name)
                 
-            order_cart = []   
+            order_cart = []
             for i in range(len_ob):
                 order_cart.append(ob[i])
                 
@@ -521,7 +509,7 @@ def ssl_payment_success(request):
             #     list_id.append(ob[i].item.serial_number)
             #     list_name.append(ob[i].item.name)
                 
-            order_cart = []   
+            order_cart = []
             for i in range(len_ob):
                 order_cart.append(ob[i])
             
@@ -592,7 +580,7 @@ def payment_testing(request, pk):
         list_id.append(ob[i].item.test_info_id)
         list_name.append(ob[i].item.test_name)
     
-    order_cart = []   
+    order_cart = []
     for i in range(len_ob):
         order_cart.append(ob[i])
     

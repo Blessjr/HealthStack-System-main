@@ -28,7 +28,7 @@ def prescription_pdf(request,pk):
     prescription = Prescription.objects.get(prescription_id=pk)
     prescription_medicine = Prescription_medicine.objects.filter(prescription=prescription)
     prescription_test = Prescription_test.objects.filter(prescription=prescription)
-    # current_date = datetime.date.today()
+    current_date = datetime.date.today()
     context={'patient':patient,'prescriptions':prescription,'prescription_test':prescription_test,'prescription_medicine':prescription_medicine}
     pres_pdf=render_to_pdf('prescription_pdf.html', context)
     if pres_pdf:

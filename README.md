@@ -6,7 +6,7 @@
 ## Contributors
 
 - **Team Members:** [Bless Junior](https://tientcheujunior83@gmail.com)
-- **Project Duration:** March 2025 - June 2025
+- **Project Duration:** November 2024 - September 2025
 
 ## Tools used:
       1) Programming Language and Libraries: Django (Python web framework), Bootstrap, JavaScript, Ajax, Django REST framework.

@@ -1,7 +1,8 @@
 {% load static %}
+{% include 'chatbot/chat.html' %}
 <!DOCTYPE html>
 <html lang="en">
-  <!-- doccure/patient-dashboard.html  30 Nov 2019 04:12:16 GMT -->
+  <!-- doccure/patient-dashboard.html  30 Nov 2024 04:12:16 GMT -->
   <head>
     <meta charset="utf-8" />
     <meta
@@ -87,6 +88,9 @@
             <!-- / Profile Sidebar -->
 
             <div class="col-md-7 col-lg-8 col-xl-9">
+              <!-- Chat Interface -->
+              <div id="chat-interface" data-conversation-id="{{ conversation.id }}"></div>
+              
               <div class="card">
                 <div class="card-body pt-0">
                   <!-- Tab Menu -->
@@ -418,7 +422,7 @@
                                   </td>
                                   <td>{{payment.transaction_id}}</td>
                                   <td>{{payment.transaction_date}}</td>
-                                  <td>{{payment.currency_amount}} BDT</td>
+                                  <td>{{payment.currency_amount}} XAF</td>
                                   <td>{{payment.card_type}}</td>
                                   <td>{{payment.card_issuer}}</td>
                                   <td>
@@ -432,7 +436,6 @@
                                 </tr>
                                 {% endfor %}
                           
-                             
 
 
                               </tbody>
@@ -457,7 +460,7 @@
       <!-- /Footer -->
     </div>
     <!-- /Main Wrapper -->
-    <!-- <div class="modal fade" id="delete_modal" aria-hidden="true" role="dialog">
+    <div class="modal fade" id="delete_modal" aria-hidden="true" role="dialog">
       <div class="modal-dialog modal-dialog-centered text-center" role="document" >
         <div class="modal-content">
         	<div class="modal-header">
@@ -476,7 +479,7 @@
           </div>
         </div>
       </div>
-    </div> -->
+    </div>
 
     <!-- jQuery -->
     <script src="{% static 'HealthStack-System/js/Normal/jquery.min.js' %}"></script>
@@ -504,10 +507,7 @@
         {% endfor %}
     </script>
   {% endif %}
-
-
-
   </body>
 
-  <!-- doccure/patient-dashboard.html  30 Nov 2019 04:12:16 GMT -->
+  <!-- doccure/patient-dashboard.html  30 Nov 2024 04:12:16 GMT -->
 </html>

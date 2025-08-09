@@ -1,5 +1,4 @@
 from django.db import models
-
 import hospital
 from hospital.models import User, Hospital_Information
 # from doctor.models import Doctor_Information
@@ -55,7 +54,7 @@ class hospital_department(models.Model):
         val1 = str(self.hospital_department_name)
         val2 = str(self.hospital)
         val3 = val1 + ' - ' + val2
-        return str(val3)     
+        return str(val3)
 
 class specialization(models.Model):
     specialization_id = models.AutoField(primary_key=True)

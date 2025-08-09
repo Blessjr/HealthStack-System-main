@@ -21,119 +21,89 @@ from django.views.decorators.csrf import csrf_exempt
 @csrf_exempt
 @login_required(login_url='login')
 @cache_control(no_cache=True, must_revalidate=True, no_store=True)
-def home(request,pk):
+def home(request, pk):
+    u = request.GET.get('u')
+    chat_id = int(u) if u and u.isdigit() else 0
+    
     if request.user.is_patient:
-            User = get_user_model()
-            users = User.objects.all()
-            patients = Patient.objects.get(user_id=pk)
-            doctor = Doctor_Information.objects.all()
-            appointments = Appointment.objects.filter(patient=patients).filter(appointment_status='confirmed')
-            doctor= Doctor_Information.objects.filter(appointment__in=appointments)
-            
-            chats = {}
-            if request.method == 'GET' and 'u' in request.GET:
-                # chats = chatMessages.objects.filter(Q(user_from=request.user.id & user_to=request.GET['u']) | Q(user_from=request.GET['u'] & user_to=request.user.id))
-                chats = chatMessages.objects.filter(Q(user_from=request.user.id, user_to=request.GET['u']) | Q(user_from=request.GET['u'], user_to=request.user.id))
-                chats = chats.order_by('date_created')
-                doc = Doctor_Information.objects.get(user_id=request.GET['u'])
-                
-                context = {
-                "page":"home",
-                "users":users,
-                "chats":chats,
-                "patient":patients,
-                "doctor":doctor,
-                "doc":doc,
-                "app":appointments,
-                
-                "chat_id": int(request.GET['u'] if request.method == 'GET' and 'u' in request.GET else 0)
-            }
-            elif request.method == 'GET' and 'search' in request.GET:
-                query = request.GET.get('search')
-                doctor= Doctor_Information.objects.filter(Q(user__first_name__icontains=query) | Q(user__last_name__icontains=query))
-                #chats = chatMessages.objects.filter(Q(user_from=request.user.id, user_to=request.GET['u']) | Q(user_from=request.GET['u'], user_to=request.user.id))
-                #chats = chats.order_by('date_created')
-                #doc = Doctor_Information.objects.get(username=request.GET['search'])
-                context = {
-                "page":"home",
-                "users":users,
-                
-                "patient":patients,
-                
-                "doctor":doctor,
-                
-            }
-            else:
-            
-            
-                context = {
-                    "page":"home",
-                    "users":users,
-                    "chats":chats,
-                    "patient":patients,
-                    "doctor":doctor,
-                    "app":appointments,
-                    "chat_id": int(request.GET['u'] if request.method == 'GET' and 'u' in request.GET else 0)
-                }
-            print(request.GET['u'] if request.method == 'GET' and 'u' in request.GET else 0)
-            return render(request,"chat.html",context)
+        User = get_user_model()
+        users = User.objects.all()
+        patients = Patient.objects.get(user_id=pk)
+        appointments = Appointment.objects.filter(patient=patients, appointment_status='confirmed')
+        doctor = Doctor_Information.objects.filter(appointment__in=appointments)
+
+        chats = chatMessages.objects.none()
+        doc = None
+        
+        if u:
+            chats = chatMessages.objects.filter(
+                Q(user_from=request.user.id, user_to=chat_id) | 
+                Q(user_from=chat_id, user_to=request.user.id)
+            ).order_by('date_created')
+            try:
+                doc = Doctor_Information.objects.get(user_id=chat_id)
+            except Doctor_Information.DoesNotExist:
+                doc = None
+
+        elif 'search' in request.GET:
+            query = request.GET.get('search')
+            doctor = Doctor_Information.objects.filter(
+                Q(user__first_name__icontains=query) | Q(user__last_name__icontains=query)
+            )
+            # Possibly no chats here since no 'u'
+            doc = None
+
+        context = {
+            "page": "home",
+            "users": users,
+            "chats": chats,
+            "patient": patients,
+            "doctor": doctor,
+            "doc": doc,
+            "app": appointments,
+            "chat_id": chat_id,
+        }
+        return render(request, "chat.html", context)
+
     elif request.user.is_doctor:
-            User = get_user_model()
-            users = User.objects.all()
-            #patients = Patient.objects.all()
-            doctor = Doctor_Information.objects.get(user_id=pk)
-            appointments = Appointment.objects.filter(doctor=doctor).filter(appointment_status='confirmed')
-            patients= Patient.objects.filter(appointment__in=appointments)
+        User = get_user_model()
+        users = User.objects.all()
+        doctor = Doctor_Information.objects.get(user_id=pk)
+        appointments = Appointment.objects.filter(doctor=doctor, appointment_status='confirmed')
+        patients = Patient.objects.filter(appointment__in=appointments)
 
-            chats = {}
-            if request.method == 'GET' and 'u' in request.GET:
-                # chats = chatMessages.objects.filter(Q(user_from=request.user.id & user_to=request.GET['u']) | Q(user_from=request.GET['u'] & user_to=request.user.id))
-                chats = chatMessages.objects.filter(Q(user_from=request.user.id, user_to=request.GET['u']) | Q(user_from=request.GET['u'], user_to=request.user.id))
-                chats = chats.order_by('date_created')
-                pat = Patient.objects.get(user_id=request.GET['u'])
-                
-                context = {
-                "page":"home",
-                "users":users,
-                "chats":chats,
-                "patient":patients,
-                "doctor":doctor,
-                "pat":pat,
-                "app":appointments,
-                
-                "chat_id": int(request.GET['u'] if request.method == 'GET' and 'u' in request.GET else 0)
-            }
-            elif request.method == 'GET' and 'search' in request.GET:
-                query = request.GET.get('search')
-                patients= Patient.objects.filter(Q(user__first_name__icontains=query) | Q(user__last_name__icontains=query))
-                #chats = chatMessages.objects.filter(Q(user_from=request.user.id, user_to=request.GET['u']) | Q(user_from=request.GET['u'], user_to=request.user.id))
-                #chats = chats.order_by('date_created')
-                #doc = Doctor_Information.objects.get(username=request.GET['search'])
-                context = {
-                "page":"home",
-                "users":users,
-                
-                "patient":patients,
-                "app":appointments,
-                "doctor":doctor,
-                
-            }
-            
-                
-            
-            else:
-            
-                context = {
-                    "page":"home",
-                    "users":users,
-                    "chats":chats,
-                    "patient":patients,
-                    "doctor":doctor,
-                    "chat_id": int(request.GET['u'] if request.method == 'GET' and 'u' in request.GET else 0)
-                }
-            print(request.GET['u'] if request.method == 'GET' and 'u' in request.GET else 0)
-            return render(request,"chat-doctor.html",context)
+        chats = chatMessages.objects.none()
+        pat = None
+        
+        if u:
+            chats = chatMessages.objects.filter(
+                Q(user_from=request.user.id, user_to=chat_id) | 
+                Q(user_from=chat_id, user_to=request.user.id)
+            ).order_by('date_created')
+            try:
+                pat = Patient.objects.get(user_id=chat_id)
+            except Patient.DoesNotExist:
+                pat = None
 
+        elif 'search' in request.GET:
+            query = request.GET.get('search')
+            patients = Patient.objects.filter(
+                Q(user__first_name__icontains=query) | Q(user__last_name__icontains=query)
+            )
+            doc = Doctor_Information.objects.filter(user__username=query).first()
+            # No chats without 'u'
+
+        context = {
+            "page": "home",
+            "users": users,
+            "chats": chats,
+            "patient": patients,
+            "doctor": doctor,
+            "pat": pat,
+            "app": appointments,
+            "chat_id": chat_id,
+        }
+        return render(request, "chat-doctor.html", context)
 @csrf_exempt
 @login_required
 def profile(request):
@@ -181,8 +151,3 @@ def send_chat(request):
         resp['status'] = 'failed'
 
     return HttpResponse(json.dumps(resp), content_type="application/json")
-
-
-
-
-       

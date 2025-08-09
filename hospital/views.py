@@ -6,7 +6,7 @@ from django.http import HttpResponse, HttpResponseRedirect
 # from django.contrib.auth.models import User
 # from django.contrib.auth.forms import UserCreationForm
 from .forms import CustomUserCreationForm, PatientForm, PasswordResetForm
-from hospital.models import Hospital_Information, User, Patient 
+from hospital.models import Hospital_Information, User, Patient
 from doctor.models import Test, testCart, testOrder
 from hospital_admin.models import hospital_department, specialization, service, Test_Information
 from django.views.decorators.cache import cache_control
@@ -290,7 +290,7 @@ def profile_settings(request):
             
             return redirect('patient-dashboard')
     else:
-        redirect('logout')  
+        redirect('logout')
         
 @csrf_exempt
 @login_required(login_url="login")
@@ -315,35 +315,46 @@ def checkout_payment(request):
 @csrf_exempt
 @login_required(login_url="login")
 def multiple_hospital(request):
-    
-    if request.user.is_authenticated: 
+    if request.user.is_authenticated:
         
         if request.user.is_patient:
-            # patient = Patient.objects.get(user_id=pk)
             patient = Patient.objects.get(user=request.user)
             doctors = Doctor_Information.objects.all()
             hospitals = Hospital_Information.objects.all()
-            
+
+            # ✅ FIXED TYPO HERE
             hospitals, search_query = searchHospitals(request)
-            
+
             # PAGINATION ADDED TO MULTIPLE HOSPITALS
             custom_range, hospitals = paginateHospitals(request, hospitals, 3)
-        
-            context = {'patient': patient, 'doctors': doctors, 'hospitals': hospitals, 'search_query': search_query, 'custom_range': custom_range}
+
+            context = {
+                'patient': patient,
+                'doctors': doctors,
+                'hospitals': hospitals,
+                'search_query': search_query,  # ✅ Now correctly defined
+                'custom_range': custom_range
+            }
             return render(request, 'multiple-hospital.html', context)
-        
+
         elif request.user.is_doctor:
             doctor = Doctor_Information.objects.get(user=request.user)
             hospitals = Hospital_Information.objects.all()
-            
+
             hospitals, search_query = searchHospitals(request)
-            
-            context = {'doctor': doctor, 'hospitals': hospitals, 'search_query': search_query}
+
+            context = {
+                'doctor': doctor,
+                'hospitals': hospitals,
+                'search_query': search_query
+            }
             return render(request, 'multiple-hospital.html', context)
+
     else:
         logout(request)
         messages.error(request, 'Not Authorized')
-        return render(request, 'patient-login.html') 
+        return render(request, 'patient-login.html')
+
     
 @csrf_exempt
 @login_required(login_url="login")
@@ -360,20 +371,20 @@ def hospital_profile(request, pk):
             specializations = specialization.objects.filter(hospital=hospitals)
             services = service.objects.filter(hospital=hospitals)
             
-            # department_list = None
-            # for d in departments:
-            #     vald = d.hospital_department_name
-            #     vald = re.sub("'", "", vald)
-            #     vald = vald.replace("[", "")
-            #     vald = vald.replace("]", "")
-            #     vald = vald.replace(",", "")
-            #     department_list = vald.split()
+            department_list = None
+            for d in departments:
+                vald = d.hospital_department_name
+                vald = re.sub("'", "", vald)
+                vald = vald.replace("[", "")
+                vald = vald.replace("]", "")
+                vald = vald.replace(",", "")
+                department_list = vald.split()
             
             context = {'patient': patient, 'doctors': doctors, 'hospitals': hospitals, 'departments': departments, 'specializations': specializations, 'services': services}
             return render(request, 'hospital-profile.html', context)
         
         elif request.user.is_doctor:
-           
+        
             doctor = Doctor_Information.objects.get(user=request.user)
             hospitals = Hospital_Information.objects.get(hospital_id=pk)
             
@@ -386,7 +397,7 @@ def hospital_profile(request, pk):
     else:
         logout(request)
         messages.error(request, 'Not Authorized')
-        return render(request, 'patient-login.html') 
+        return render(request, 'patient-login.html')
     
     
 def data_table(request):
@@ -497,7 +508,7 @@ def hospital_doctor_register(request, pk):
     
 
 def testing(request):
-    # hospitals = Hospital_Information.objects.get(hospital_id=1)
+    hospitals = Hospital_Information.objects.get(hospital_id=1)
     test = "test"
     context = {'test': test}
     return render(request, 'testing.html', context)
@@ -510,12 +521,11 @@ def view_report(request,pk):
         report = Report.objects.filter(report_id=pk)
         specimen = Specimen.objects.filter(report__in=report)
         test = Test.objects.filter(report__in=report)
-
-        # current_date = datetime.date.today()
+        current_date = datetime.date.today()
         context = {'patient':patient,'report':report,'test':test,'specimen':specimen}
         return render(request, 'view-report.html',context)
     else:
-        redirect('logout') 
+        redirect('logout')
 
 
 def test_cart(request):
@@ -587,13 +597,13 @@ def test_cart(request, pk):
             context = {'test_carts': test_carts,'test_order': test_order, 'patient': patient, 'prescription_test':prescription_test, 'prescription_id':pk}
             return render(request, 'test-cart.html', context)
         else:
-            # messages.warning(request, "You don't have any test in your cart!")
+            messages.warning(request, "You don't have any test in your cart!")
             context = {'patient': patient,'prescription_test':prescription_test}
             return render(request, 'prescription-view.html', context)
     else:
         logout(request)
         messages.info(request, 'Not Authorized')
-        return render(request, 'patient-login.html') 
+        return render(request, 'patient-login.html')
 
 @csrf_exempt
 @login_required(login_url="login")
@@ -629,7 +639,7 @@ def test_remove_cart(request, pk):
     else:
         logout(request)
         messages.info(request, 'Not Authorized')
-        return render(request, 'patient-login.html') 
+        return render(request, 'patient-login.html')
 
 @csrf_exempt
 def prescription_view(request,pk):
@@ -642,7 +652,7 @@ def prescription_view(request,pk):
         context = {'patient':patient,'prescription':prescription,'prescription_test':prescription_test,'prescription_medicine':prescription_medicine}
         return render(request, 'prescription-view.html',context)
       else:
-         redirect('logout') 
+         redirect('logout')
 
 @csrf_exempt
 def render_to_pdf(template_src, context_dict={}):
@@ -653,23 +663,6 @@ def render_to_pdf(template_src, context_dict={}):
     if not pres_pdf.err:
         return HttpResponse(result.getvalue(),content_type="aplication/pres_pdf")
     return None
-
-
-# def prescription_pdf(request,pk):
-#  if request.user.is_patient:
-#     patient = Patient.objects.get(user=request.user)
-#     prescription = Prescription.objects.get(prescription_id=pk)
-#     perscription_medicine = Perscription_medicine.objects.filter(prescription=prescription)
-#     perscription_test = Perscription_test.objects.filter(prescription=prescription)
-#     current_date = datetime.date.today()
-#     context={'patient':patient,'current_date' : current_date,'prescription':prescription,'perscription_test':perscription_test,'perscription_medicine':perscription_medicine}
-#     pdf=render_to_pdf('prescription_pdf.html', context)
-#     if pdf:
-#         response=HttpResponse(pdf, content_type='application/pdf')
-#         content="inline; filename=report.pdf"
-#         # response['Content-Disposition']= content
-#         return response
-#     return HttpResponse("Not Found")
 
 @csrf_exempt
 def prescription_pdf(request,pk):

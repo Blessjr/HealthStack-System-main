@@ -2,7 +2,7 @@
 
 {% for message in messages %}
   <div class="toast notification bg-{% if message.tags == 'error' %}danger{% else %}{{message.tags}}{% endif %}" role="alert" aria-live="assertive" aria-atomic="true" data-delay="5000">
-    {% comment %} <div class="toast-header">
+  <div class="toast-header">
       <strong class="mr-auto">
         {% if message.tags == 'error' %}
           <i class="fas fa-times mr-2"></i>
@@ -18,7 +18,7 @@
       <button type="button" class="ml-2 mb-1 close" data-dismiss="toast" aria-label="Close">
         <span aria-hidden="true">&times;</span>
       </button>
-    </div> {% endcomment %}
+    </div>
     <div class="toast-body">
         {{message|safe}}
     </div>

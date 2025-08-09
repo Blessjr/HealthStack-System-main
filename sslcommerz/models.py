@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from doctor.models import Appointment, testOrder, Prescription
 from hospital.models import Patient
@@ -7,7 +8,7 @@ from pharmacy.models import Order
 
 
 class Payment(models.Model):
-    # user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)
     payment_id = models.AutoField(primary_key=True)
     invoice_number = models.CharField(max_length=255, null=True, blank=True)
     

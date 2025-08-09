@@ -32,6 +32,7 @@ urlpatterns = [
     path('doctor/', include('doctor.urls')),
     path('api/', include('api.urls')),
     path('hospital_admin/', include('hospital_admin.urls')),
+    path('chatbot/', include('chatbot.urls')),
     path('chat/', include('ChatApp.urls')),
     path('sslcommerz/', include('sslcommerz.urls')),
     #path('lab/', include('lab.urls')),

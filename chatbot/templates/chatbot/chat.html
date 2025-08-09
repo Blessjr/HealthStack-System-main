@@ -1,0 +1,60 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>HealthStack</title>
+    <link rel="stylesheet" href="{% static 'css/chatbot.css' %}" />
+</head>
+<body>
+  <div id="chatbot-container">
+    <!-- Chat launcher button -->
+    <button id="chatbot-launcher" aria-label="Open chat">🤖</button>
+
+    <!-- Chat Panel -->
+    <div id="chatbot-panel" style="display:none;">
+      <div id="chatbot-header">
+        Virtual Doc
+        <div class="header-actions">
+           <button id="language-toggle" aria-label="Toggle language">🌐 EN/FR</button>
+          <button id="new-chat" aria-label="New chat">🔄</button>
+          <button id="chat-history-toggle" aria-label="History">🕒</button>
+          <!-- Mic button is added dynamically by JS -->
+        </div>
+      </div>
+
+      <!-- Chat History Drawer -->
+      <div id="chatbot-history" hidden>
+        <h4>Previous chats</h4>
+        <ul id="history-list"></ul>
+      </div>
+
+      <!-- Messages Section -->
+      <div id="chatbot-messages"></div>
+
+      <!-- Input Row -->
+      <form id="chatbot-input-row">
+        <!-- CSRF token inside the form -->
+        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+        <input id="chatbot-input" type="text" placeholder="Type your message..." autocomplete="on" />
+        <button id="chatbot-send" type="submit" aria-label="Send">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+          </svg>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Pass conversation ID to JS -->
+  <script>
+    window.CONVERSATION_ID = "{{ conversation.id|default:'default_id' }}";
+  </script>
+
+  <!--js/websocket_utils.js-->
+  <script src="{% static 'js/websocket_utils.js' %}"></script>
+
+  <!-- Chatbot JS with cache busting -->
+  <script src="{% static 'js/chatbot.js' %}?v={{ timestamp }}"></script>
+</body>
+</html>

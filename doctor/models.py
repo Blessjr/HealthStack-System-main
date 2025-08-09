@@ -33,6 +33,7 @@ class Doctor_Information(models.Model):
         ('Dermatologists', 'Dermatologists'),
     )
     
+    is_online = models.BooleanField(default=False)
     doctor_id = models.AutoField(primary_key=True)
     user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True, related_name='profile')
     name = models.CharField(max_length=200, null=True, blank=True)
@@ -263,6 +264,8 @@ class Doctor_review(models.Model):
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE, null=True, blank=True)
     title = models.CharField(max_length=200, null=True, blank=True)
     message = models.CharField(max_length=1000, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
 
     def __str__(self):
         return str(self.patient.username)
