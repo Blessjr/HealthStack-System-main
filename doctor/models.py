@@ -269,3 +269,43 @@ class Doctor_review(models.Model):
 
     def __str__(self):
         return str(self.patient.username)
+
+# Rename Conversation to DoctorConversation
+class Conversation(models.Model):
+    patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='doctor_conversations')
+    doctor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='doctor_chats')
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'doctor_conversation'  # Add this line
+
+    def __str__(self):
+        return f"Doctor Conversation {self.id}"
+
+class ChatMessage(models.Model):
+    SENDER_CHOICES = [
+        ('patient', 'Patient'),
+        ('doctor', 'Doctor'),
+        ('bot', 'Bot'),
+    ]
+    
+    LANGUAGE_CHOICES = [
+        ('en', 'English'),
+        ('fr', 'French')
+    ]
+    
+    conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name='messages')
+    sender = models.CharField(max_length=10, choices=SENDER_CHOICES)
+    message = models.TextField()
+    language = models.CharField(max_length=10, choices=LANGUAGE_CHOICES, default='en')
+    timestamp = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
+    is_forwarded = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'doctor_chatmessage'  # Add this line
+        ordering = ('timestamp',)
+
+    def __str__(self):
+        return f"{self.sender}: {self.message[:30]}"

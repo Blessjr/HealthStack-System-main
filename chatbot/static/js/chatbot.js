@@ -10,32 +10,28 @@ let currentLanguage = 'en'; // 'en' or 'fr'
 // ====== TRANSLATIONS ======
 const translations = {
   greetings: {
-    en: "Hi there! I'm your virtual doc. How can I assist you today?",
-    fr: "Bonjour ! Je suis votre assistant médical. Comment puis-je vous aider ?"
+    en: "Hello! I'm MediAI, your medical assistant. I can help with general health questions, symptom information, and first aid advice. How can I help you today?",
+    fr: "Bonjour ! Je suis MediAI, votre assistant médical. Je peux vous aider avec des questions générales sur la santé, des informations sur les symptômes et des conseils de premiers soins. Comment puis-je vous aider aujourd'hui ?"
   },
   welcomeBack: {
-    en: "👋 Welcome back! Here's your previous conversation.",
-    fr: "👋 Bon retour ! Voici votre conversation précédente."
+    en: "👋 Welcome back! I'm here to help with your medical questions.",
+    fr: "👋 Bon retour ! Je suis là pour vous aider avec vos questions médicales."
   },
   newChat: {
-    en: "👋 New chat started",
-    fr: "👋 Nouvelle conversation"
+    en: "👋 New chat started with MediAI - Your Medical Assistant",
+    fr: "👋 Nouvelle conversation avec MediAI - Votre Assistant Médical"
   },
   thinking: {
-    en: "Thinking",
-    fr: "Réflexion"
+    en: "MediAI is thinking",
+    fr: "MediAI réfléchit"
   },
   inputPlaceholder: {
-    en: "Type your message...",
-    fr: "Tapez votre message..."
+    en: "Type your medical question or concern...",
+    fr: "Tapez votre question ou préoccupation médicale..."
   },
-  wsConnected: {
-    en: "Connected to real-time chat",
-    fr: "Connecté au chat en temps réel"
-  },
-  wsDisconnected: {
-    en: "Disconnected from real-time chat",
-    fr: "Déconnecté du chat en temps réel"
+  error: {
+    en: "I'm having trouble connecting to my medical knowledge base. Please try again or rephrase your question.",
+    fr: "J'ai des difficultés à me connecter à ma base de connaissances médicales. Veuillez réessayer ou reformuler votre question."
   }
 };
 
@@ -50,19 +46,13 @@ const histBtn = document.getElementById('chat-history-toggle');
 const histDrawer = document.getElementById('chatbot-history');
 const listEl = document.getElementById('history-list');
 const languageToggle = document.getElementById('language-toggle');
-const statusIndicator = document.createElement('div');
-statusIndicator.className = 'chat-status';
-panel.insertBefore(statusIndicator, messagesEl);
-
-console.log("Launcher exists:", !!launcher);
-console.log("Panel exists:", !!panel);
 
 // ====== UTILITY FUNCTIONS ======
 const loadConvos = () => JSON.parse(localStorage.getItem(LS_KEY) || '[]');
 const saveConvos = (c) => localStorage.setItem(LS_KEY, JSON.stringify(c));
 
 function scrollIfNeeded() {
-  if (botReplyCount > 3) {
+  if (botReplyCount > 0) {
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 }
@@ -114,7 +104,8 @@ function startNewChat() {
   current = { id: Date.now(), ts: Date.now(), messages: [] };
   botReplyCount = 0;
   messagesEl.innerHTML = '';
-  botReply();
+  addBubble(translations.newChat[currentLanguage], 'bot');
+  showGreeting();
 }
 
 function refreshHistory() {
@@ -143,108 +134,41 @@ function loadChat(id) {
   showWelcomeBack();
 }
 
-function botFallback(t) {
-  const q = t.toLowerCase();
-  if (currentLanguage === 'fr') {
-    if (/(salut|bonjour)/.test(q)) return "👋 Bonjour ! Comment puis-je vous aider ?";
-    if (/ça va/.test(q)) return "Je suis un bot, mais je vais bien ! Et vous ?";
-    if (/aide/.test(q)) return "Bien sûr ! De quoi avez-vous besoin ?";
-    if (/merci/.test(q)) return "De rien ! 😊";
-    if (/au revoir/.test(q)) return "Au revoir !";
-    return "😕 Désolé, je n'ai pas compris. Pouvez-vous reformuler ?";
-  } else {
-    if (/(hi|hello|hey)/.test(q)) return "👋 Hello! How can I help?";
-    if (/how are you/.test(q)) return "I'm just a bot, but I'm good! And you?";
-    if (/help/.test(q)) return "Sure! What do you need help with?";
-    if (/thank/.test(q)) return "You're welcome! 😊";
-    if (/bye/.test(q)) return "Goodbye!";
-    return "😕 Sorry, I didn't get that. Try again.";
-  }
-}
-
-// ====== WEBSOCKET SETUP ======
-let chatSocket = null;
-let reconnectAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 5;
-const RECONNECT_DELAY = 3000; // 3 seconds
-
-function setupWebSocket() {
-  const roomName = "patient_default";
-  const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const wsUrl = `${wsProtocol}://${window.location.host}/ws/chat/${roomName}/`;
-
-  chatSocket = new WebSocket(wsUrl);
-
-  chatSocket.onopen = () => {
-    console.log('WebSocket connected');
-    reconnectAttempts = 0;
-    statusIndicator.textContent = '';
-    statusIndicator.style.color = 'green';
-  };
-
-  chatSocket.onmessage = (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      if (data.sender === 'bot') {
-        addBubble(data.message, 'bot');
-        botReplyCount++;
-      }
-    } catch (error) {
-      console.error('Error parsing WebSocket message:', error);
-    }
-  };
-
-  chatSocket.onclose = (e) => {
-    console.log('WebSocket disconnected:', e);
-    statusIndicator.textContent = '';
-    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-      reconnectAttempts++;
-      console.log(`Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
-      setTimeout(setupWebSocket, RECONNECT_DELAY);
-    }
-  };
-
-  chatSocket.onerror = (error) => {
-    console.error('WebSocket error:', error);
-  };
-}
-
-// Initialize WebSocket connection
-setupWebSocket();
-
-// ====== BOT REPLY FUNCTION ======
-async function botReply(userText = '') {
-  if (!userText) {
-    addBubble(translations.newChat[currentLanguage], 'bot');
-    return;
-  }
-
-  // Add thinking bubble
-  const thinking = document.createElement('div');
-  thinking.className = 'chat-line bot';
-  thinking.innerHTML = `<div class="chat-emoji">🤖</div><div class="chat-bubble" id="thinking-bubble">${translations.thinking[currentLanguage]}<span id="dots">.</span></div>`;
-  messagesEl.appendChild(thinking);
-  scrollIfNeeded();
-
-  const dotsEl = document.getElementById('dots');
-  let dotCount = 1;
-  const interval = setInterval(() => {
-    dotCount = (dotCount + 1) % 4;
-    dotsEl.textContent = '.'.repeat(dotCount || 1);
-  }, 400);
-
+// ====== MEDICAL AI INTEGRATION ======
+async function getMedicalAIResponse(userText) {
   try {
-    // Try WebSocket first if available
-    if (chatSocket && chatSocket.readyState === WebSocket.OPEN) {
-      chatSocket.send(JSON.stringify({
-        type: 'text',
-        content: userText,
-        sender: 'user',
+    const response = await fetch('/chatbot/api/chat/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+        'X-Language': currentLanguage
+      },
+      body: JSON.stringify({
+        message: userText,
         language: currentLanguage
-      }));
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.message) {
+      return data.message;
+    } else if (data.error) {
+      throw new Error(data.error);
     } else {
-      // Fallback to HTTP if WebSocket fails
-      const response = await fetch('/chatbot/api/chat/', {
+      throw new Error('No response from medical AI service');
+    }
+  } catch (error) {
+    console.error('Medical AI error:', error);
+    
+    // Try CSV fallback as last resort
+    try {
+      const csvResponse = await fetch('/chatbot/api/chat/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -253,29 +177,67 @@ async function botReply(userText = '') {
         },
         body: JSON.stringify({
           message: userText,
-          language: currentLanguage
+          language: currentLanguage,
+          use_csv_fallback: true
         })
       });
-
-      const data = await response.json();
-      clearInterval(interval);
       
-      // Remove thinking bubble
-      messagesEl.removeChild(thinking);
-      
-      // Add actual response
-      if (data.message) {
-        addBubble(data.message, 'bot');
-        botReplyCount++;
-      } else if (data.error) {
-        addBubble(botFallback(userText), 'bot');
+      if (csvResponse.ok) {
+        const csvData = await csvResponse.json();
+        return csvData.message || translations.error[currentLanguage];
       }
+    } catch (csvError) {
+      console.error('CSV fallback also failed:', csvError);
     }
+    
+    return translations.error[currentLanguage];
+  }
+}
+
+// ====== BOT REPLY FUNCTION ======
+async function botReply(userText = '') {
+  if (!userText) {
+    addBubble(translations.newChat[currentLanguage], 'bot');
+    showGreeting();
+    return;
+  }
+
+  // Add thinking bubble
+  const thinking = document.createElement('div');
+  thinking.className = 'chat-line bot';
+  thinking.id = 'thinking-wrap';
+  thinking.innerHTML = `<div class="chat-emoji">🤖</div><div class="chat-bubble" id="thinking-bubble">${translations.thinking[currentLanguage]}<span id="dots">.</span></div>`;
+  messagesEl.appendChild(thinking);
+  scrollIfNeeded();
+
+  const dotsEl = document.getElementById('dots');
+  let dotCount = 1;
+  const interval = setInterval(() => {
+    dotCount = (dotCount + 1) % 4;
+    if (dotsEl) dotsEl.textContent = '.'.repeat(dotCount || 1);
+  }, 400);
+
+  try {
+    // Get response from Medical AI
+    const response = await getMedicalAIResponse(userText);
+    
+    clearInterval(interval);
+    // Remove thinking bubble
+    const wrap = document.getElementById('thinking-wrap');
+    if (wrap) wrap.remove();
+
+    // Add actual response
+    addBubble(response, 'bot');
+    botReplyCount++;
+    
     persistCurrent();
   } catch (error) {
     clearInterval(interval);
-    messagesEl.removeChild(thinking);
-    addBubble(botFallback(userText), 'bot');
+    const wrap = document.getElementById('thinking-wrap');
+    if (wrap) wrap.remove();
+    
+    // Final fallback response
+    addBubble(translations.error[currentLanguage], 'bot');
     console.error("Chatbot error:", error);
   }
 }
@@ -288,7 +250,11 @@ launcher.addEventListener('click', () => {
   if (isHidden) {
     input.focus();
     if (firstOpen) {
-      current.messages.length === 0 ? showGreeting() : showWelcomeBack();
+      if (current.messages.length === 0) {
+        showGreeting();
+      } else {
+        showWelcomeBack();
+      }
       firstOpen = false;
     }
   }
@@ -297,6 +263,24 @@ launcher.addEventListener('click', () => {
 languageToggle.addEventListener('click', () => {
   currentLanguage = currentLanguage === 'en' ? 'fr' : 'en';
   updateUILanguage();
+  
+  // Notify user of language change
+  const changeMsg = currentLanguage === 'en' 
+    ? "Language changed to English. How can I help with your medical questions?" 
+    : "Langue changée en Français. Comment puis-je vous aider avec vos questions médicales?";
+  addBubble(changeMsg, 'bot');
+});
+
+newBtn.addEventListener('click', () => {
+  startNewChat();
+});
+
+histBtn.addEventListener('click', () => {
+  const isHidden = histDrawer.hidden;
+  if (isHidden) {
+    refreshHistory();
+  }
+  histDrawer.hidden = !isHidden;
 });
 
 form.addEventListener('submit', e => {
@@ -308,84 +292,18 @@ form.addEventListener('submit', e => {
   botReply(text);
 });
 
-let micBtn = document.getElementById('mic-button');
-if (!micBtn) {
-  micBtn = document.createElement('button');
-  micBtn.type = 'button';
-  micBtn.id = 'mic-button';
-  micBtn.textContent = '🎙️';
-  micBtn.title = 'Click to speak';
-  Object.assign(micBtn.style, {
-    marginLeft: '8px',
-    background: '#007bff',
-    border: 'none',
-    color: 'white',
-    fontSize: '1.2rem',
-    padding: '6px 10px',
-    borderRadius: '4px',
-    cursor: 'pointer'
-  });
-  micBtn.addEventListener('mouseover', () => micBtn.style.background = '#0056b3');
-  micBtn.addEventListener('mouseout', () => micBtn.style.background = '#007bff');
-  micBtn.addEventListener('mousedown', () => micBtn.style.background = '#003f7f');
-  micBtn.addEventListener('mouseup', () => micBtn.style.background = '#0056b3');
-  form.appendChild(micBtn);
-}
-
-micBtn.addEventListener('click', () => {
-  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-    alert(currentLanguage === 'fr'
-      ? "Reconnaissance vocale non supportée par votre navigateur."
-      : "Speech recognition not supported in your browser.");
-    return;
-  }
-
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const recognition = new SpeechRecognition();
-  recognition.lang = currentLanguage === 'fr' ? 'fr-FR' : 'en-US';
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
-
-  recognition.start();
-  micBtn.textContent = '🎤';
-
-  recognition.onresult = (event) => {
-    const transcript = event.results[0][0].transcript;
-    input.value = transcript;
-    form.dispatchEvent(new Event('submit'));
-  };
-
-  recognition.onerror = (e) => alert(
-    currentLanguage === 'fr'
-      ? `Erreur vocale : ${e.error}`
-      : `Voice error: ${e.error}`
-  );
-  recognition.onend = () => micBtn.textContent = '🎙️';
-});
-
-histBtn.onclick = () => {
-  histDrawer.hidden = !histDrawer.hidden;
-  if (!histDrawer.hidden) refreshHistory();
-};
-
-newBtn.onclick = () => {
-  console.log('New chat clicked');
-  fetch('/chatbot/api/chat/', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-      'X-Language': currentLanguage
-    },
-    body: JSON.stringify({ message: 'restart' })
-  }).then(() => {
-    persistCurrent();
-    startNewChat();
-    histDrawer.hidden = true;
-  });
-};
-
-window.addEventListener('beforeunload', persistCurrent);
-
 // Initialize UI language
 updateUILanguage();
+
+// Auto-focus input when panel opens
+const observer = new MutationObserver((mutations) => {
+  mutations.forEach((mutation) => {
+    if (mutation.attributeName === 'style') {
+      if (getComputedStyle(panel).display !== 'none') {
+        input.focus();
+      }
+    }
+  });
+});
+
+observer.observe(panel, { attributes: true });

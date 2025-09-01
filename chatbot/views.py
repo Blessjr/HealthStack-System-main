@@ -1,7 +1,7 @@
+from datetime import timezone
 import os
 import json
 import time
-import openai
 import pandas as pd
 from difflib import get_close_matches
 from django.conf import settings
@@ -15,19 +15,24 @@ from django.shortcuts import render
 from gtts import gTTS
 from io import BytesIO
 
-from chatbot.models import ChatMessage, Conversation
+# Use your actual models
+from .models import ChatSession, ChatMessage, Conversation
+# Doctor presence
 from doctor.models import Doctor_Information as Doctor
+
+# Optional: only needed for translation helper below
+import google.generativeai as genai
+if getattr(settings, "GEMINI_API_KEY", None):
+    genai.configure(api_key=settings.GEMINI_API_KEY)
+
+# Use your ai_service for AI replies
+from .ai_service import get_ai_response
 
 # ========================
 # 📄 Class-based Chat View
 # ========================
 class ChatView(TemplateView):
     template_name = 'chatbot/chat.html'
-
-# ========================
-# 🔐 OpenAI API Key
-# ========================
-
 
 # ========================
 # 📁 CSV Utility Functions
@@ -46,10 +51,11 @@ def load_qa_pairs():
     for i in range(len(df) - 1):
         current = df.iloc[i]
         next_msg = df.iloc[i + 1]
-        if current['sender'].lower() == 'user' and next_msg['sender'].lower() in ['bot', 'assistant']:
-            question = str(current['message']).strip()
-            answer = str(next_msg['message']).strip()
-            qa_pairs.append((question, answer))
+        if str(current.get('sender', '')).lower() == 'user' and str(next_msg.get('sender', '')).lower() in ['bot', 'assistant']:
+            question = str(current.get('message', '')).strip()
+            answer = str(next_msg.get('message', '')).strip()
+            if question and answer:
+                qa_pairs.append((question, answer))
 
     return qa_pairs
 
@@ -70,19 +76,20 @@ def search_csv_response(user_input):
     return "😕 Sorry, I couldn't understand that. Try rephrasing or ask something else."
 
 # ========================
-# 🌍 Translate text using OpenAI
+# 🌍 Translate text using Gemini (helper)
 # ========================
 def translate_text(text, target_language):
-    prompt = f"Translate this to {'French' if target_language == 'fr' else 'English'}:\n{text}"
+    """
+    Best-effort translation helper. Uses Gemini if configured.
+    """
+    if not getattr(settings, "AIzaSyBrY97CUIpihBwnNGn-GGlCx0XPw-nZIVQ", None):
+        return text  # No key -> skip translation
     try:
-        response = openai.chat.completions.create(
-            model="deepseek-chat",
-            messages=[
-                {"role": "system", "content": "You are a translation assistant."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        return response.choices[0].message.content.strip()
+        target = 'French' if target_language == 'fr' else 'English'
+        prompt = f"Translate this to {target}:\n{text}"
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content(prompt)
+        return (response.text or text).strip()
     except Exception as e:
         print("❌ Translation error:", e)
         return text
@@ -90,243 +97,157 @@ def translate_text(text, target_language):
 # ========================
 # 🧠 Chatbot Decision Logic
 # ========================
-def get_response_from_doctor_or_ai(request, user_input, language, conversation=None):
+def get_or_create_active_session(user):
     """
-    Save the user message and respond either by forwarding to an online doctor or
-    generating AI response (OpenAI API), with fallback to CSV search.
-
-    If conversation is None, message is saved without conversation context.
+    Returns an open ChatSession for the user or creates a new one.
+    Also ensures a Conversation exists.
     """
+    if not user.is_authenticated:
+        return None, None
+    
+    # Get or create conversation
+    conversation, created = Conversation.objects.get_or_create(patient=user)
+    
+    # Get or create chat session
+    existing = ChatSession.objects.filter(user=user, ended_at__isnull=True).order_by('-started_at').first()
+    if existing:
+        return existing, conversation
+    
+    session = ChatSession.objects.create(user=user)
+    return session, conversation
 
-    # Save user's message (with conversation if provided)
-    if conversation:
-        ChatMessage.objects.create(
-            conversation=conversation,
-            sender="user",
-            message=user_input,
-            language=language
-        )
-    else:
-        ChatMessage.objects.create(
-            sender="user",
-            message=user_input,
-            language=language
-        )
+def get_response_from_doctor_or_ai(request, user_input, language, session, conversation):
+    """
+    Save user's message, check for online doctor; if not present, ask Gemini via ai_service.
+    Always writes to Message with senders: user / bot / doctor.
+    """
+    # Persist incoming user message
+    ChatMessage.objects.create(conversation=conversation, sender="user", message=user_input, language=language)
 
-    # Check for online doctor
+    # Check for online doctor to handoff
     online_doctor = Doctor.objects.filter(is_online=True).first()
     if online_doctor:
         forward_msg = f"Forwarding to Doctor {online_doctor.user.get_full_name()}... Please wait."
+        # Save bot notice
+        bot_notice = ChatMessage.objects.create(conversation=conversation, sender="bot", message=forward_msg, language=language)
 
-        # Save assistant message about forwarding
-        if conversation:
-            ChatMessage.objects.create(
-                conversation=conversation,
-                sender="assistant",
-                message=forward_msg,
-                language=language,
-                handled_by=online_doctor.user  # assuming you have this field
-            )
-        else:
-            ChatMessage.objects.create(
-                sender="assistant",
-                message=forward_msg,
-                language=language,
-                handled_by=online_doctor.user
-            )
+        # Notify connected WebSocket clients (patient & doctor rooms)
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'chat_{session.id}',
+            {'type': 'chat_message', 'message': forward_msg, 'sender': 'bot'}
+        )
+        async_to_sync(channel_layer.group_send)(
+            f'doctor_{session.id}',
+            {'type': 'chat_message', 'message': user_input, 'sender': 'user'}
+        )
+        # Mark user message as forwarded
+        try:
+            last_user_msg = ChatMessage.objects.filter(conversation=conversation, sender='user').order_by('-timestamp').first()
+            if last_user_msg:
+                last_user_msg.forwarded_to_doctor = True
+                last_user_msg.save(update_fields=['forwarded_to_doctor'])
+        except Exception:
+            pass
 
-        # Notify WebSocket group if conversation available
-        if conversation:
-            channel_layer = get_channel_layer()
+        # Also forward notice to doctor
+        try:
+            bot_notice.forwarded_to_doctor = True
+            bot_notice.save(update_fields=['forwarded_to_doctor'])
             async_to_sync(channel_layer.group_send)(
-                f'chat_{conversation.id}',
-                {
-                    'type': 'chat_message',
-                    'message': forward_msg,
-                    'sender': 'assistant',
-                }
+                f'doctor_{session.id}',
+                {'type': 'chat_message', 'message': forward_msg, 'sender': 'bot'}
             )
-        return forward_msg
+        except Exception:
+            pass
+
         return forward_msg
 
-    # Prepare system prompt based on language
-    system_prompt = (
-        "Tu es un assistant médical virtuel. Réponds toujours en français."
-        if language == "fr"
-        else "You are a virtual medical assistant. Always reply in English."
+    # No doctor online -> query Gemini via ai_service
+    try:
+        reply = get_ai_response(user_input, language=language) or ""
+        reply = reply.strip() or "Sorry, I couldn't generate a response."
+    except Exception as e:
+        print("❌ ai_service error:", e)
+        reply = None
+
+    if not reply:
+        # Fallback to CSV
+        reply = search_csv_response(user_input)
+
+    # Save bot reply
+    ChatMessage.objects.create(conversation=conversation, sender="bot", message=reply, language=language)
+
+    # Broadcast to WebSocket patient room
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        f'chat_{session.id}',
+        {'type': 'chat_message', 'message': reply, 'sender': 'bot'}
     )
 
-    messages = request.session.get("chat_history", [])
-    if not any(m["role"] == "system" for m in messages):
-        messages.insert(0, {"role": "system", "content": system_prompt})
+    # Also inform doctor room (if any listener)
+    async_to_sync(channel_layer.group_send)(
+        f'doctor_{session.id}',
+        {'type': 'chat_message', 'message': reply, 'sender': 'bot'}
+    )
 
-    messages.append({"role": "user", "content": user_input})
-
-    try:
-        response = openai.chat.completions.create(
-            model="deepseek-chat",
-            messages=messages
-        )
-        reply = response.choices[0].message.content.strip()
-        messages.append({"role": "assistant", "content": reply})
-        request.session["chat_history"] = messages
-
-        # Save assistant's response
-        if conversation:
-            ChatMessage.objects.create(
-                conversation=conversation,
-                sender="assistant",
-                message=reply,
-                language=language
-            )
-        else:
-            ChatMessage.objects.create(
-                sender="assistant",
-                message=reply,
-                language=language
-            )
-
-        # Notify WebSocket group if conversation available
-        if conversation:
-            channel_layer = get_channel_layer()
-            async_to_sync(channel_layer.group_send)(
-                f'chat_{conversation.id}',
-                {
-                    'type': 'chat_message',
-                    'message': reply,
-                    'sender': 'assistant',
-                }
-            )
-
-        return reply
-
-    except Exception as e:
-        print("❌ OpenAI error:", e)
-        fallback_reply = search_csv_response(user_input)
-
-        # Save fallback response
-        if conversation:
-            ChatMessage.objects.create(
-                conversation=conversation,
-                sender="assistant",
-                message=fallback_reply,
-                language=language
-            )
-        else:
-            ChatMessage.objects.create(
-                sender="assistant",
-                message=fallback_reply,
-                language=language
-            )
-        return fallback_reply
+    return reply
 
 # ========================
 # 🌐 AJAX Chat API Endpoint
 # ========================
 @csrf_exempt
 def chat_api(request):
-    if not settings.OPENROUTER_API_KEY:
-        return JsonResponse({
-            "error": "OpenRouter API key not configured",
-            "message": "Service temporarily unavailable"
-        }, status=503)
     if request.method != 'POST':
         return JsonResponse({"error": "Invalid request method."}, status=405)
 
     try:
-        data = json.loads(request.body)
-        user_message = data.get("message", "").strip()
+        data = json.loads(request.body or "{}")
+        user_message = str(data.get("message", "")).strip()
         if not user_message:
             return JsonResponse({"error": "No message provided."}, status=400)
 
-        # Check user authentication
         user = request.user if request.user.is_authenticated else None
         if not user:
             return JsonResponse({"error": "Authentication required."}, status=401)
 
-        # Handle chat reset commands
-        if user_message.lower() in ["new chat", "restart", "reset"]:
-            request.session["chat_history"] = []
-            request.session["chat_language"] = None
-            return JsonResponse({"message": "🤖\n👋 New chat started.", "language": "en"})
+        # Get language preference
+        language = request.headers.get('X-Language', 'en')
+        if language not in ['en', 'fr']:
+            language = 'en'
 
-        # Get or create conversation for the authenticated user
-        conversation, created = Conversation.objects.get_or_create(patient=user)
+        # Get or create active session and conversation
+        session, conversation = get_or_create_active_session(user)
+        
+        # Save user message
+        ChatMessage.objects.create(conversation=conversation, sender="user", message=user_message, language=language)
 
-        # Language detection or header override
-        language = request.headers.get('X-Language')
-        if not language:
-            try:
-                language = detect(user_message)
-            except LangDetectException:
-                language = "en"
-
-        # Manage session language state
-        session_language = request.session.get("chat_language")
-        if not session_language:
-            session_language = language
-            request.session["chat_language"] = session_language
-
-        # First try OpenRouter AI
-        try:
-            client = openai.OpenAI(
-                base_url="https://api.deepseek.com",
-                api_key=settings.OPENROUTER_API_KEY
-            )
-
-            response = client.chat.completions.create(
-                extra_headers={
-                    "HTTP-Referer": "http://localhost:8000",
-                    "X-Title": "MediAI Chatbot",
-                },
-                model="deepseek-chat",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a helpful medical assistant. Respond concisely and professionally."
-                    },
-                    {
-                        "role": "user",
-                        "content": user_message
-                    }
-                ]
-            )
-            ai_response = response.choices[0].message.content
-            
-            # Save the successful AI response
-            ChatMessage.objects.create(
-                conversation=conversation,
-                sender="assistant",
-                message=ai_response,
-                language=session_language
-            )
-            
-            response_message = ai_response
-            
-        except Exception as ai_error:
-            print(f"AI service error: {ai_error}")
-            # Fallback to original doctor/AI/dataset logic
-            response_message = get_response_from_doctor_or_ai(request, user_message, session_language, conversation)
-
-        # If detected language differs from session language, translate
-        if language != session_language:
-            translated_response = translate_text(response_message, language)
-            request.session["chat_language"] = language
+        # Try AI response first
+        ai_response = get_ai_response(user_message, language)
+        
+        if ai_response:
+            # Save and return AI response
+            ChatMessage.objects.create(conversation=conversation, sender="bot", message=ai_response, language=language)
             return JsonResponse({
-                "message": translated_response,
+                "message": ai_response,
                 "language": language,
-                "conversation_id": conversation.id
+                "session_id": session.id
             })
-
-        return JsonResponse({
-            "message": response_message,
-            "language": session_language,
-            "conversation_id": conversation.id
-        })
+        else:
+            # Fallback to CSV
+            csv_response = search_csv_response(user_message)
+            ChatMessage.objects.create(conversation=conversation, sender="bot", message=csv_response, language=language)
+            return JsonResponse({
+                "message": csv_response,
+                "language": language,
+                "session_id": session.id
+            })
 
     except Exception as e:
         print("❌ Chat API Error:", e)
-        return JsonResponse({"error": str(e)}, status=500)
+        # Final fallback
+        error_msg = "Désolé, problème technique. Veuillez réessayer." if language == 'fr' else "Sorry, technical issue. Please try again."
+        return JsonResponse({"message": error_msg, "language": language}, status=200)
 
 # ========================
 # 🔊 Text-to-Speech API Endpoint
@@ -335,10 +256,9 @@ def chat_api(request):
 def tts_api(request):
     if request.method == 'POST':
         try:
-            data = json.loads(request.body)
-            text = data.get("text", "").strip()
-            lang = data.get("language", "en")
-
+            data = json.loads(request.body or "{}")
+            text = str(data.get("text", "")).strip()
+            lang = str(data.get("language", "en"))
             if not text:
                 return JsonResponse({"error": "No text provided."}, status=400)
 
@@ -348,7 +268,6 @@ def tts_api(request):
             mp3_fp.seek(0)
 
             return HttpResponse(mp3_fp.read(), content_type="audio/mpeg")
-
         except Exception as e:
             print("❌ TTS API error:", e)
             return JsonResponse({"error": str(e)}, status=500)
@@ -356,43 +275,23 @@ def tts_api(request):
     return JsonResponse({"error": "Invalid request method."}, status=405)
 
 # ========================
-# 💬 Optional Form POST View
-# ========================
-@csrf_exempt
-def chatbot_response_view(request):
-    if request.method == 'POST':
-        user_input = request.POST.get("message", "").strip()
-        try:
-            language = request.headers.get('X-Language')
-            if not language:
-                try:
-                    language = detect(user_input)
-                except LangDetectException:
-                    language = "en"
-
-            response = get_response_from_doctor_or_ai(request, user_input, language)
-            return JsonResponse({"response": response})
-
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-
-    return JsonResponse({"error": "Invalid request method."}, status=405)
-
-# ========================
-# 🧾 Helper: Get or create conversation for user
-# ========================
-def get_or_create_conversation_for_user(user):
-    if not user.is_authenticated:
-        return None
-    conversation, created = Conversation.objects.get_or_create(patient=user)
-    return conversation
-
-# ========================
 # 🖥️ View to render chatbot page
 # ========================
 def chatbot_view(request):
-    conversation = get_or_create_conversation_for_user(request.user)
+    session, conversation = get_or_create_active_session(request.user) if request.user.is_authenticated else (None, None)
     return render(request, 'chatbot/chat.html', {
-        'conversation': conversation,
+        'session': session,
         'timestamp': int(time.time())
     })
+    
+@csrf_exempt
+def csv_fallback_api(request):
+    if request.method == 'POST':
+        data = json.loads(request.body or "{}")
+        user_message = data.get("message", "")
+        language = request.headers.get('X-Language', 'en')
+        
+        response = search_csv_response(user_message)
+        return JsonResponse({"message": response})
+    
+    return JsonResponse({"error": "Invalid method"}, status=405)

@@ -19,7 +19,8 @@
            <button id="language-toggle" aria-label="Toggle language">🌐 EN/FR</button>
           <button id="new-chat" aria-label="New chat">🔄</button>
           <button id="chat-history-toggle" aria-label="History">🕒</button>
-          <!-- Mic button is added dynamically by JS -->
+          <!-- Connection status indicator -->
+          <div id="connection-status" class="status-indicator offline">●</div>
         </div>
       </div>
 
@@ -48,11 +49,9 @@
 
   <!-- Pass conversation ID to JS -->
   <script>
-    window.CONVERSATION_ID = "{{ conversation.id|default:'default_id' }}";
+    window.CONVERSATION_ID = "{{ session.id|default:'new' }}";
+    window.CHAT_SESSION_ID = "{{ session.id|default:'' }}";
   </script>
-
-  <!--js/websocket_utils.js-->
-  <script src="{% static 'js/websocket_utils.js' %}"></script>
 
   <!-- Chatbot JS with cache busting -->
   <script src="{% static 'js/chatbot.js' %}?v={{ timestamp }}"></script>

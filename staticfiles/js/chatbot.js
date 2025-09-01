@@ -178,7 +178,7 @@ function setupWebSocket() {
   chatSocket.onopen = () => {
     console.log('WebSocket connected');
     reconnectAttempts = 0;
-    statusIndicator.textContent = translations.wsConnected[currentLanguage];
+    statusIndicator.textContent = '';
     statusIndicator.style.color = 'green';
   };
 
@@ -251,19 +251,31 @@ async function botReply(userText = '') {
           'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
           'X-Language': currentLanguage
         },
-        body: JSON.stringify({ message: userText })
+        body: JSON.stringify({
+          message: userText,
+          language: currentLanguage
+        })
       });
 
       const data = await response.json();
       clearInterval(interval);
-      const bubbleDiv = thinking.querySelector('.chat-bubble');
-      bubbleDiv.textContent = data.message || '🤔 No response received.';
-      botReplyCount++;
+      
+      // Remove thinking bubble
+      messagesEl.removeChild(thinking);
+      
+      // Add actual response
+      if (data.message) {
+        addBubble(data.message, 'bot');
+        botReplyCount++;
+      } else if (data.error) {
+        addBubble(botFallback(userText), 'bot');
+      }
     }
     persistCurrent();
   } catch (error) {
     clearInterval(interval);
-    thinking.querySelector('.chat-bubble').textContent = botFallback(userText);
+    messagesEl.removeChild(thinking);
+    addBubble(botFallback(userText), 'bot');
     console.error("Chatbot error:", error);
   }
 }

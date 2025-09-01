@@ -11,9 +11,10 @@ https://docs.djangoproject.com/en/4.0/ref/settings/
 """
 
 from pathlib import Path
+import environ
 import os
 import re
-import environ
+
 # django-environ
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -205,7 +206,7 @@ AUTH_USER_MODEL = 'hospital.User'
 SESSION_COOKIE_AGE = 45*60
 SESSION_SAVE_EVERY_REQUEST = True
 
-OPENROUTER_API_KEY = env("OPENROUTER_API_KEY", default="")
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', 'AIzaSyBrY97CUIpihBwnNGn-GGlCx0XPw-nZIVQ')
 
 #used for easy switching
 import sys

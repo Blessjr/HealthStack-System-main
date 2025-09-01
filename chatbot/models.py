@@ -3,46 +3,53 @@ from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
-class Conversation(models.Model):
-    patient = models.ForeignKey(User, related_name='conversations', on_delete=models.CASCADE)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"Conversation {self.id} with {self.patient}"
-
 class ChatSession(models.Model):
-    # Optional: keep both Conversation and ChatSession, or merge into one model if needed
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chat_sessions')
+    doctor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='doctor_sessions')
     started_at = models.DateTimeField(auto_now_add=True)
     ended_at = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
 
     def __str__(self):
         return f"Session {self.id} for {self.user}"
-
-class ChatMessage(models.Model):
-    # You can use either conversation or session depending on your flow
-    conversation = models.ForeignKey(Conversation, related_name='messages', null=True, blank=True, on_delete=models.CASCADE)
-    session = models.ForeignKey(ChatSession, related_name='messages', null=True, blank=True, on_delete=models.CASCADE)
     
-    sender = models.CharField(
-        max_length=50,
-        choices=[('user', 'User'), ('bot', 'Bot'), ('doctor', 'Doctor'), ('assistant', 'Assistant')]
-    )
-    message = models.TextField()
-    timestamp = models.DateTimeField(auto_now_add=True)
-    language = models.CharField(max_length=10, default='en')
-    handled_by = models.ForeignKey(
-        User,
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name='handled_messages'
-    )
+class Conversation(models.Model):
+    # FIXED: Use patient field instead of participants for the save_message function
+    patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chat_conversations')
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        db_table = 'chatbot_conversation'  # Add this line
+        # Ensure one conversation per patient
+        unique_together = ['patient']
+
+    def __str__(self):
+        return f"Conversation {self.id} for {self.patient.username}"
+
+class ChatMessage(models.Model):
+    SENDER_CHOICES = [
+        ('patient', 'Patient'),
+        ('doctor', 'Doctor'),
+        ('bot', 'Bot'),
+    ]
+    
+    LANGUAGE_CHOICES = [
+        ('en', 'English'),
+        ('fr', 'French')
+    ]
+    
+    conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name='chat_messages')
+    sender = models.CharField(max_length=10, choices=SENDER_CHOICES)
+    message = models.TextField()
+    language = models.CharField(max_length=10, choices=LANGUAGE_CHOICES, default='en')
+    timestamp = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
+    # Add this new field:
+    forwarded_to_doctor = models.BooleanField(default=False)  # New field added here
+
+    class Meta:
+        db_table = 'chatbot_chatmessage'
         ordering = ('timestamp',)
 
     def __str__(self):
-        snippet = self.message[:30]
-        return f"{self.sender}: {snippet}"
+        return f"{self.sender}: {self.message[:30]}"

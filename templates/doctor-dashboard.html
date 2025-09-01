@@ -3,10 +3,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, user-scalable=0"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0" />
     <title>HealthStack</title>
 
     <link type="image/x-icon" href="{% static 'HealthStack-System/images/Normal/favicon.png' %}" rel="icon" />
@@ -14,6 +11,83 @@
     <link rel="stylesheet" href="{% static 'HealthStack-System/plugins/Normal/fontawesome/css/fontawesome.min.css' %}" />
     <link rel="stylesheet" href="{% static 'HealthStack-System/plugins/Normal/fontawesome/css/all.min.css' %}" />
     <link rel="stylesheet" href="{% static 'HealthStack-System/css/Normal/style.css' %}" />
+    
+    <!-- MiroTalk Video Conference Styles -->
+    <style>
+        /* MiroTalk Integration Styles */
+        .call-button-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+        
+        .call-button {
+            padding: 15px 30px;
+            background: #4a6bdf;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(74, 107, 223, 0.3);
+        }
+        
+        .call-button:hover {
+            background: #3a5bc7;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(74, 107, 223, 0.4);
+        }
+        
+        .call-button i {
+            margin-right: 10px;
+        }
+        
+        .mirotalk-fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            z-index: 9999;
+            display: none;
+        }
+        
+        .mirotalk-header {
+            background: #4a6bdf;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .mirotalk-title {
+            font-size: 20px;
+            font-weight: 600;
+        }
+        
+        .close-call {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        
+        .close-call:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .mirotalk-frame {
+            width: 100%;
+            height: calc(100% - 60px);
+            border: none;
+        }
+    </style>
   </head>
   <body>
   {% if user.is_authenticated %}
@@ -45,6 +119,14 @@
             </div>
 
             <div class="col-md-7 col-lg-8 col-xl-9">
+              <!-- Video Call Button -->
+              <div class="call-button-container">
+                <button class="call-button" onclick="openVideoCall()">
+                  <i class="fas fa-video"></i> Start Video Consultation
+                </button>
+              </div>
+              
+              <!-- Stats cards (unchanged) -->
               <div class="row">
                 <div class="col-md-12">
                   <div class="card dash-card">
@@ -100,6 +182,7 @@
                 </div>
               </div>
 
+              <!-- Appointment table (unchanged) -->
               <div class="row">
                 <div class="col-md-12">
                   <h4 class="mb-4">Patient Appointment</h4>
@@ -109,7 +192,6 @@
                         <a class="nav-link active" href="#today-appointments" data-toggle="tab">Today</a>
                       </li>
                     </ul>
-
                     <div class="tab-content">
                       <div class="tab-pane show active" id="today-appointments">
                         <div class="card card-table mb-0">
@@ -162,7 +244,70 @@
                 </div>
               </div>
 
-              <!-- REPLACED CHATBOT MESSAGES TABLE -->
+              <!-- Waiting Patients -->
+              <div class="row mt-5">
+                <div class="col-md-12">
+                  <div class="card">
+                    <div class="card-header">
+                      <h4 class="card-title">Waiting Patients</h4>
+                      <p class="card-text">Patients currently chatting with the chatbot</p>
+                    </div>
+                    <div class="card-body">
+                      <div class="table-responsive">
+                        <table class="table table-hover table-center">
+                          <thead class="thead-light">
+                            <tr>
+                              <th>Patient</th>
+                              <th>Started At</th>
+                              <th>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {% for session in waiting_sessions %}
+                            <tr>
+                              <td>{{ session.user.username }}</td>
+                              <td>{{ session.started_at }}</td>
+                              <td>
+                                <a href="{% url 'doctor_join_chat' session.id %}" class="btn btn-sm btn-primary">
+                                  Join Chat
+                                </a>
+                              </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                              <td colspan="3" class="text-center text-muted">No patients waiting</td>
+                            </tr>
+                            {% endfor %}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Live Chat UI -->
+              <div class="row mt-5" id="chat-box" style="display:none;">
+                <div class="col-md-12">
+                  <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                      <h4 class="card-title mb-0">Live Chat with Patient</h4>
+                      <small class="text-muted">Session: <span id="active-session-id">-</span></small>
+                    </div>
+                    <div class="card-body" id="chat-messages" style="height:300px; overflow-y:auto; background:#f9f9f9; padding:10px;">
+                      <!-- messages will appear here -->
+                    </div>
+                    <div class="card-footer">
+                      <form id="chat-form" class="d-flex">
+                        <input type="text" id="chat-input" class="form-control mr-2" placeholder="Type your reply..." autocomplete="off" />
+                        <button type="submit" class="btn btn-success">Send</button>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Recent Chatbot Conversations (kept) -->
               <div class="row mt-5">
                 <div class="col-md-12">
                   <div class="card">
@@ -216,11 +361,26 @@
                   </div>
                 </div>
               </div>
-              <!-- END REPLACED SECTION -->
 
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- MiroTalk Full Screen Video Conference -->
+      <div id="mirotalk-fullscreen" class="mirotalk-fullscreen">
+          <div class="mirotalk-header">
+              <div class="mirotalk-title">Video Consultation in Progress</div>
+              <button class="close-call" onclick="closeVideoCall()">
+                  <i class="fas fa-times"></i> End Call
+              </button>
+          </div>
+          <iframe 
+              id="mirotalk-frame"
+              class="mirotalk-frame"
+              allow="camera; microphone; display-capture; fullscreen; clipboard-read; clipboard-write; web-share; autoplay"
+              src=""
+          ></iframe>
       </div>
 
       {% include 'footer.html' %}
@@ -238,6 +398,45 @@
   <script src="{% static 'HealthStack-System/Outside_assets/js/script.js' %}"></script>
   <script src="{% static 'HealthStack-System/js/Normal/sidebar.js' %}"></script>
 
+  <!-- MiroTalk Video Conference Script -->
+  <script>
+      // MiroTalk Video Call Functions
+      function openVideoCall() {
+          const fullscreenDiv = document.getElementById('mirotalk-fullscreen');
+          const iframe = document.getElementById('mirotalk-frame');
+          
+          // Set the iframe source to the direct join URL
+          iframe.src = 'https://c2c.mirotalk.com/join?room=doctor-consultation&name=Dr.{{user.username}}';
+          
+          // Show the fullscreen container
+          fullscreenDiv.style.display = 'block';
+          
+          // Prevent scrolling on the background page
+          document.body.style.overflow = 'hidden';
+      }
+
+      function closeVideoCall() {
+          const fullscreenDiv = document.getElementById('mirotalk-fullscreen');
+          const iframe = document.getElementById('mirotalk-frame');
+          
+          // Hide the fullscreen container
+          fullscreenDiv.style.display = 'none';
+          
+          // Stop the video call by removing the iframe source
+          iframe.src = '';
+          
+          // Re-enable scrolling on the background page
+          document.body.style.overflow = 'auto';
+      }
+
+      // Close the video call when pressing the Escape key
+      document.addEventListener('keydown', function(event) {
+          if (event.key === 'Escape') {
+              closeVideoCall();
+          }
+      });
+  </script>
+
   {% if messages %}
   <script>
     {% for message in messages %}
@@ -248,7 +447,23 @@
   </script>
   {% endif %}
 
-  <!--js/websocket_utils.js-->
-  <script src="{% static 'js/websocket_utils.js' %}"></script>
+
+  <script>
+    // If redirected with ?session_id=, auto-connect the WebSocket for this doctor
+    function getQueryParam(name) {
+      const url = new URL(window.location.href);
+      return url.searchParams.get(name);
+    }
+    (function () {
+      const sid = getQueryParam("session_id");
+      if (sid) {
+        document.getElementById("active-session-id").textContent = sid;
+        document.getElementById("chat-box").style.display = "block";
+        if (typeof connectDoctorChat === "function") {
+          connectDoctorChat(sid);
+        }
+      }
+    })();
+  </script>
   </body>
 </html>
