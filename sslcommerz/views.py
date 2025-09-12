@@ -38,8 +38,6 @@ sslcz = SSLCOMMERZ(payment_settings)
 
 # Create your views here.
 
-
-
 def generate_random_string():
     N = 8
     string_var = ""
