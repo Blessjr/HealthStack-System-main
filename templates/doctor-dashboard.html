@@ -16,31 +16,32 @@
     <style>
         /* MiroTalk Integration Styles */
         .call-button-container {
-            text-align: center;
-            margin: 30px 0;
+            position: fixed;
+            bottom: 25px;
+            right: 25px;
+            z-index: 999;
         }
         
         .call-button {
-            padding: 15px 30px;
+            width: 60px;
+            height: 60px;
             background: #4a6bdf;
             color: white;
             border: none;
-            border-radius: 8px;
-            font-size: 18px;
-            font-weight: 600;
+            border-radius: 50%;
+            font-size: 22px;
             cursor: pointer;
             transition: all 0.3s ease;
             box-shadow: 0 4px 15px rgba(74, 107, 223, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         
         .call-button:hover {
             background: #3a5bc7;
-            transform: translateY(-2px);
+            transform: translateY(-3px);
             box-shadow: 0 6px 20px rgba(74, 107, 223, 0.4);
-        }
-        
-        .call-button i {
-            margin-right: 10px;
         }
         
         .mirotalk-fullscreen {
@@ -119,13 +120,6 @@
             </div>
 
             <div class="col-md-7 col-lg-8 col-xl-9">
-              <!-- Video Call Button -->
-              <div class="call-button-container">
-                <button class="call-button" onclick="openVideoCall()">
-                  <i class="fas fa-video"></i> Start Video Consultation
-                </button>
-              </div>
-              
               <!-- Stats cards (unchanged) -->
               <div class="row">
                 <div class="col-md-12">
@@ -365,6 +359,13 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Video Call Button (Positioned at bottom right) -->
+      <div class="call-button-container">
+          <button class="call-button" onclick="openVideoCall()" title="Start Video Consultation">
+              <i class="fas fa-video"></i>
+          </button>
       </div>
 
       <!-- MiroTalk Full Screen Video Conference -->
